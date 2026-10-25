@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 import "fake-indexeddb/auto";
 import Papa from "papaparse";
 import ExcelJS from "exceljs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { PrintableStudents } from "../src/Profile";
 import {
   newStudent,
   studentKey,
@@ -242,6 +245,48 @@ describe("التصدير الحقيقي", () => {
   });
 });
 describe("حفظ المتصفح", () => {
+  it("يجهز ملف طباعة كاملًا مع السجلات المرتبطة ومصدرها دون إخفاء التبويبات", () => {
+    const s = {
+      ...student(),
+      courses: [
+        {
+          id: "c",
+          code: "TEST-C",
+          title: "مقرر اختبار الطباعة",
+          semester: "481",
+          credits: 3,
+          grade: "أ",
+          result: "مجتاز" as const,
+        },
+      ],
+      documents: [
+        {
+          id: "d",
+          title: "وثيقة اختبار الطباعة",
+          type: "خطة",
+          date: "2026-10-25",
+          url: "https://example.org/test-document",
+          notes: "",
+        },
+      ],
+      followUps: [
+        { id: "n", date: "2026-10-25", text: "متابعة اختبار الطباعة" },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      createElement(PrintableStudents, { students: [s], demo: true }),
+    );
+    for (const value of [
+      s.fullName,
+      s.studentNumber,
+      s.courses[0].title,
+      s.documents[0].title,
+      s.documents[0].url,
+      s.followUps[0].text,
+      "بيانات افتراضية للتجربة",
+    ])
+      expect(html).toContain(value);
+  });
   it("يحفظ ويعيد البيانات ويرفض كتابة تبويب يحمل مراجعة قديمة", async () => {
     const initial = await loadWorkspace();
     const saved = await saveWorkspace(

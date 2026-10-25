@@ -31,7 +31,7 @@ import {
   ExternalLink,
   RotateCcw,
 } from "lucide-react";
-import { Badge, Empty, SearchBox, formatDate, number } from "./ui";
+import { Badge, Empty, Modal, SearchBox, formatDate, number } from "./ui";
 import { loadWorkspace, saveWorkspace } from "./storage";
 import {
   emptyWorkspace,
@@ -80,6 +80,7 @@ export default function App() {
     [importing, setImporting] = useState(false),
     [exporting, setExporting] = useState<Student[] | null>(null),
     [printStudents, setPrintStudents] = useState<Student[]>([]),
+    [printPreview, setPrintPreview] = useState(false),
     [toast, setToast] = useState(""),
     [taskFilter, setTaskFilter] = useState("open");
   const accept = (w: Workspace) => {
@@ -226,7 +227,7 @@ export default function App() {
   };
   const print = useCallback((students: Student[]) => {
     setPrintStudents(students);
-    setTimeout(() => window.print(), 100);
+    setPrintPreview(true);
   }, []);
   const deleteStudent = async (s: Student) => {
     if (
@@ -1559,6 +1560,30 @@ export default function App() {
             <X size={15} />
           </button>
         </div>
+      )}
+      {printPreview && (
+        <Modal
+          title="معاينة ملفات الطلاب"
+          subtitle={`${number(printStudents.length)} ملفًا كاملًا — راجع المحتوى قبل الطباعة`}
+          onClose={() => setPrintPreview(false)}
+          wide
+        >
+          <div className="print-preview">
+            <PrintableStudents students={printStudents} demo={demo} />
+          </div>
+          <footer className="modal-footer">
+            <span>اختر حفظ PDF من نافذة طباعة المتصفح</span>
+            <div className="button-row">
+              <button className="button" onClick={() => setPrintPreview(false)}>
+                إغلاق المعاينة
+              </button>
+              <button className="button primary" onClick={() => window.print()}>
+                <FileDown size={16} />
+                طباعة / حفظ PDF
+              </button>
+            </div>
+          </footer>
+        </Modal>
       )}
       <PrintableStudents students={printStudents} demo={demo} />
     </>

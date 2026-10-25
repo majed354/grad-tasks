@@ -3,6 +3,9 @@
   margin: 17mm 14mm;
 }
 @media print {
+  #nl-badge-frame {
+    display: none !important;
+  }
   body {
     background: white !important;
     color: #111 !important;
