@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.netlify/
+.env
+.env.*
+!.env.example
+.DS_Store
+private-data/*
+!private-data/.gitkeep
+*.tsbuildinfo
+مجلد بلا عنوان/
+qa-local/

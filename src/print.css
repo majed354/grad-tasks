@@ -1,0 +1,103 @@
+@page {
+  size: A4;
+  margin: 17mm 14mm;
+}
+@media print {
+  body {
+    background: white !important;
+    color: #111 !important;
+    font-size: 10pt;
+  }
+  .app-shell,
+  .modal-backdrop,
+  .toast {
+    display: none !important;
+  }
+  .print-report {
+    display: block !important;
+    color: #111 !important;
+    font-size: 10pt;
+    line-height: 1.8;
+  }
+  .print-student {
+    break-before: page;
+  }
+  .print-student:first-child {
+    break-before: auto;
+  }
+  .print-student > header {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 2px solid #294a39;
+    padding-bottom: 10px;
+    font-size: 9pt;
+    color: #333;
+  }
+  .print-student h1 {
+    font-size: 19pt;
+    margin: 20px 0 17px;
+    color: #183e3b;
+  }
+  .print-student h2 {
+    font-size: 13pt;
+    margin: 22px 0 10px;
+    border-bottom: 1px solid #bbb;
+    padding-bottom: 5px;
+    break-after: avoid;
+  }
+  .print-student .details {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 15px;
+    break-inside: avoid;
+    margin: 15px 0;
+  }
+  .print-student .details dt {
+    color: #444 !important;
+    font-size: 8pt;
+  }
+  .print-student .details dd {
+    color: #111 !important;
+    font-size: 10pt;
+  }
+  .print-student table {
+    width: 100%;
+    border-collapse: collapse;
+    white-space: normal;
+  }
+  .print-student th,
+  .print-student td {
+    font-size: 9pt;
+    color: #111 !important;
+    border: 1px solid #ccc;
+    padding: 6px;
+    text-align: right;
+  }
+  .print-student thead {
+    display: table-header-group;
+  }
+  .print-student tr {
+    break-inside: avoid;
+  }
+  .print-student p {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin: 7px 0;
+    color: #111 !important;
+  }
+  .print-student a {
+    color: #284d39 !important;
+    font-size: 8pt;
+    overflow-wrap: anywhere;
+  }
+  .print-student footer {
+    border-top: 1px solid #bbb;
+    margin-top: 24px;
+    font-size: 8pt;
+    color: #444;
+  }
+  .print-demo {
+    border: 1px solid #a45f24;
+    padding: 7px;
+    color: #a45f24 !important;
+  }
+}
