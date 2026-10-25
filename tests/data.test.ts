@@ -5,6 +5,7 @@ import ExcelJS from "exceljs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PrintableStudents } from "../src/Profile";
+import { formatDate } from "../src/ui";
 import {
   newStudent,
   studentKey,
@@ -30,6 +31,18 @@ const student = () => ({
   degree: "ماجستير" as const,
 });
 describe("هوية الطالب وجودة البيانات", () => {
+  it("يعرض التاريخ بتوقيت الرياض حتى إن اختلف توقيت الجهاز", () => {
+    const original = process.env.TZ;
+    try {
+      process.env.TZ = "Asia/Riyadh";
+      const expected = formatDate("2026-10-25");
+      process.env.TZ = "Pacific/Honolulu";
+      expect(formatDate("2026-10-25")).toBe(expected);
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
+  });
   it("يطابق الأرقام العربية ويحفظ اختلاف الدرجة والبرنامج", () => {
     const s = student();
     expect(digits("١٢٣۴۵")).toBe("12345");

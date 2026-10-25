@@ -160,6 +160,7 @@ export const formatDate = (s: string) =>
     ? new Intl.DateTimeFormat("ar-SA", {
         dateStyle: "medium",
         calendar: "gregory",
+        timeZone: "Asia/Riyadh",
       }).format(new Date(s.includes("T") ? s : `${s}T12:00:00+03:00`))
     : "غير مسجل";
 export const number = (n: number) => n.toLocaleString("ar-SA");
