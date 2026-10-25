@@ -48,6 +48,13 @@ import { demoWorkspace } from "./demo";
 import StudentEditor from "./StudentEditor";
 import Profile, { PrintableStudents } from "./Profile";
 import { ExportDialog, ImportDialog } from "./DataDialogs";
+import {
+  academicScope,
+  availableYears,
+  semesterName,
+  DEFAULT_ACADEMIC_YEAR,
+  yearLabel,
+} from "./academic";
 type Page =
   "dashboard" | "students" | "tasks" | "reports" | "sources" | "settings";
 const navigation = [
@@ -74,6 +81,8 @@ export default function App() {
     [stage, setStage] = useState(""),
     [sort, setSort] = useState("updated"),
     [rowPage, setRowPage] = useState(1);
+  const [academicYear, setAcademicYear] = useState(DEFAULT_ACADEMIC_YEAR);
+  const [academicPeriod, setAcademicPeriod] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set()),
     [profileId, setProfileId] = useState<string | null>(null),
     [editor, setEditor] = useState<Student | "new" | null>(null),
@@ -104,7 +113,22 @@ export default function App() {
     const timer = setTimeout(() => setToast(""), 5000);
     return () => clearTimeout(timer);
   }, [toast]);
-  useEffect(() => setRowPage(1), [query, degree, program, status, stage, sort]);
+  useEffect(
+    () => setRowPage(1),
+    [query, degree, program, status, stage, sort, academicYear, academicPeriod],
+  );
+  const scope = useMemo(
+    () => academicScope(workspace.students, academicYear, academicPeriod),
+    [workspace.students, academicYear, academicPeriod],
+  );
+  const scopeIds = useMemo(
+    () => new Set(scope.students.map((s) => s.id)),
+    [scope.students],
+  );
+  const years = useMemo(
+    () => availableYears(workspace.students),
+    [workspace.students],
+  );
   const navigate = (p: Page) => {
     setPage(p);
     setProfileId(null);
@@ -167,6 +191,8 @@ export default function App() {
     setSelected(new Set());
     setProfileId(null);
     setPage("dashboard");
+    setAcademicYear(DEFAULT_ACADEMIC_YEAR);
+    setAcademicPeriod("");
     setToast(
       "أنت الآن في بيانات افتراضية. التعديلات لن تحفظ بعد إغلاق التجربة.",
     );
@@ -184,7 +210,7 @@ export default function App() {
   };
   const filtered = useMemo(
     () =>
-      workspace.students
+      scope.students
         .filter(
           (s) =>
             (!degree || s.degree === degree) &&
@@ -210,16 +236,17 @@ export default function App() {
               ? a.studentNumber.localeCompare(b.studentNumber)
               : b.updatedAt.localeCompare(a.updatedAt),
         ),
-    [workspace, degree, program, status, stage, query, sort],
+    [scope.students, degree, program, status, stage, query, sort],
   );
-  const selectedStudents = workspace.students.filter((s) => selected.has(s.id));
+  const selectedStudents = scope.students.filter((s) => selected.has(s.id));
   const profile = workspace.students.find((s) => s.id === profileId);
   const allTasks = workspace.students
+    .filter((s) => scopeIds.has(s.id))
     .flatMap((s) => s.tasks.map((t) => ({ ...t, student: s })))
     .sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"));
   const openTasks = allTasks.filter((t) => !t.done);
   const lateTasks = allTasks.filter(overdue);
-  const incomplete = workspace.students.filter((s) => missing(s).length);
+  const incomplete = scope.students.filter((s) => missing(s).length);
   const openProfile = (id: string) => {
     setProfileId(id);
     setMobileNav(false);
@@ -254,6 +281,8 @@ export default function App() {
     setStatus("");
     setStage("");
   };
+  const metric = (value: number) =>
+    scope.available ? number(value) : "غير متاح";
   if (loadError)
     return (
       <div className="fatal">
@@ -341,7 +370,7 @@ export default function App() {
                 )}
                 {id === "students" && (
                   <span className="nav-count">
-                    {number(workspace.students.length)}
+                    {scope.available ? number(scope.students.length) : "—"}
                   </span>
                 )}
               </button>
@@ -418,6 +447,85 @@ export default function App() {
             </div>
           )}
           <main id="main-content" className="main-content">
+            {(!["settings", "sources"].includes(page) || profile) && (
+              <section
+                className="panel scope-panel"
+                aria-label="نطاق السنة والفصل"
+              >
+                <div className="scope-controls">
+                  <label>
+                    السنة الأكاديمية
+                    <select
+                      aria-label="السنة الأكاديمية"
+                      value={academicYear}
+                      onChange={(e) => {
+                        setAcademicYear(e.target.value);
+                        setAcademicPeriod("");
+                        setSelected(new Set());
+                        setProfileId(null);
+                        clearFilters();
+                      }}
+                    >
+                      {years.map((y) => (
+                        <option value={y} key={y}>
+                          {yearLabel(y)}هـ
+                          {y === DEFAULT_ACADEMIC_YEAR ? " · الافتراضية" : ""}
+                        </option>
+                      ))}
+                      <option value="all">جميع السنوات · السجل التاريخي</option>
+                    </select>
+                  </label>
+                  {academicYear !== "all" && scope.periods.length > 0 && (
+                    <label>
+                      الفصل المرصود
+                      <select
+                        aria-label="الفصل المرصود"
+                        value={scope.period}
+                        onChange={(e) => {
+                          setAcademicPeriod(e.target.value);
+                          setSelected(new Set());
+                          setProfileId(null);
+                          clearFilters();
+                        }}
+                      >
+                        {scope.periods.map((p) => (
+                          <option value={p} key={p}>
+                            {semesterName(p)} · {number(Number(p))}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <div className="scope-summary">
+                    <strong>
+                      {academicYear === "all"
+                        ? "السجل التاريخي لجميع السنوات"
+                        : `${yearLabel(academicYear)}هـ · ${scope.period ? semesterName(scope.period) : "لا يوجد كشف موثق"}`}
+                    </strong>
+                    <span>
+                      {scope.sourceDate
+                        ? `تاريخ استخراج الكشف: ${formatDate(scope.sourceDate)}`
+                        : academicYear === "all"
+                          ? `${number(workspace.students.length)} قيدًا محفوظًا؛ قد تختلف سنوات رصدها`
+                          : "لم تتوفر بيانات مؤرخة لهذا النطاق"}
+                    </span>
+                  </div>
+                </div>
+                <p className="field-note">
+                  {academicYear === "1448"
+                    ? "بيانات الفصل الأول أولية؛ لا تمثل تعداد نهاية السنة. "
+                    : ""}
+                  القوائم والأرقام تتبع السنة والفصل المحددين. ملف الطالب
+                  والرسائل يعرضان تاريخهما الكامل مع مصادره.
+                </p>
+                {!scope.available && academicYear !== "all" && (
+                  <p className="alert">
+                    الأرقام غير متاحة لهذا النطاق. استورد كشفًا موثقًا أو اختر
+                    سنة أخرى؛ غياب البيانات لا يعني أن عدد الطلاب صفر.
+                  </p>
+                )}
+              </section>
+            )}
             {profile ? (
               <Profile
                 key={profile.id}
@@ -457,85 +565,87 @@ export default function App() {
                         </button>
                       </div>
                     </div>
-                    <section className="hero-panel">
-                      <div className="hero-copy">
-                        <span className="hero-tag">
-                          <span />{" "}
-                          {demo
-                            ? "استكشاف مساحة العمل"
-                            : "مساحة عمل الدراسات العليا"}
-                        </span>
-                        <h2>
-                          كل طالب،
-                          <br />
-                          <em>صورة مكتملة.</em>
-                        </h2>
-                        <p>
-                          بياناته الأكاديمية، ورسالته، وقراراته ومواعيده؛
-                          <br />
-                          مترابطة في ملف واحد يسهل الرجوع إليه.
-                        </p>
-                        <button onClick={() => navigate("students")}>
-                          استعرض سجل الطلاب <ArrowLeft size={18} />
-                        </button>
-                      </div>
-                      <div className="hero-art" aria-hidden="true">
-                        <div className="orbit orbit-one" />
-                        <div className="orbit orbit-two" />
-                        <div className="orbit orbit-three" />
-                        <span className="orbit-dot dot-one" />
-                        <span className="orbit-dot dot-two" />
-                        <div className="art-card">
-                          <span className="art-icon">
-                            <GraduationCap size={40} />
+                    {(!workspace.students.length || demo) && (
+                      <section className="hero-panel">
+                        <div className="hero-copy">
+                          <span className="hero-tag">
+                            <span />{" "}
+                            {demo
+                              ? "استكشاف مساحة العمل"
+                              : "مساحة عمل الدراسات العليا"}
                           </span>
-                          <span className="art-line long" />
-                          <span className="art-line" />
-                          <div className="art-chips">
-                            <i />
-                            <i />
-                            <i />
-                          </div>
-                          <div className="art-row">
-                            <Check size={13} />
-                            <span />
-                          </div>
-                          <div className="art-row">
-                            <Check size={13} />
-                            <span />
-                          </div>
+                          <h2>
+                            كل طالب،
+                            <br />
+                            <em>صورة مكتملة.</em>
+                          </h2>
+                          <p>
+                            بياناته الأكاديمية، ورسالته، وقراراته ومواعيده؛
+                            <br />
+                            مترابطة في ملف واحد يسهل الرجوع إليه.
+                          </p>
+                          <button onClick={() => navigate("students")}>
+                            استعرض سجل الطلاب <ArrowLeft size={18} />
+                          </button>
                         </div>
-                        <span className="floating-label float-one">
-                          <BookOpen size={15} />
-                          مسار أكاديمي
-                        </span>
-                        <span className="floating-label float-two">
-                          <CheckSquare size={15} />
-                          متابعة متصلة
-                        </span>
-                      </div>
-                    </section>
+                        <div className="hero-art" aria-hidden="true">
+                          <div className="orbit orbit-one" />
+                          <div className="orbit orbit-two" />
+                          <div className="orbit orbit-three" />
+                          <span className="orbit-dot dot-one" />
+                          <span className="orbit-dot dot-two" />
+                          <div className="art-card">
+                            <span className="art-icon">
+                              <GraduationCap size={40} />
+                            </span>
+                            <span className="art-line long" />
+                            <span className="art-line" />
+                            <div className="art-chips">
+                              <i />
+                              <i />
+                              <i />
+                            </div>
+                            <div className="art-row">
+                              <Check size={13} />
+                              <span />
+                            </div>
+                            <div className="art-row">
+                              <Check size={13} />
+                              <span />
+                            </div>
+                          </div>
+                          <span className="floating-label float-one">
+                            <BookOpen size={15} />
+                            مسار أكاديمي
+                          </span>
+                          <span className="floating-label float-two">
+                            <CheckSquare size={15} />
+                            متابعة متصلة
+                          </span>
+                        </div>
+                      </section>
+                    )}
                     <div className="stats-grid">
                       {[
                         {
-                          label: "إجمالي سجلات الطلاب",
-                          value: workspace.students.length,
+                          label: "القيود المرصودة في النطاق",
+                          value: scope.students.length,
                           icon: Users,
-                          sub: `${number(workspace.students.filter((s) => s.degree === "ماجستير").length)} ماجستير · ${number(workspace.students.filter((s) => s.degree === "دكتوراه").length)} دكتوراه`,
+                          sub: `${metric(scope.students.filter((s) => s.degree === "ماجستير").length)} ماجستير · ${metric(scope.students.filter((s) => s.degree === "دكتوراه").length)} دكتوراه`,
                           tone: "green",
                           click: () => navigate("students"),
                         },
                         {
-                          label: "في مرحلة كتابة الرسالة",
-                          value: workspace.students.filter(
-                            (s) => s.stage === "كتابة الرسالة",
+                          label: "الطلاب المنتظمون",
+                          value: scope.students.filter(
+                            (s) => s.status === "منتظم",
                           ).length,
                           icon: BookOpen,
-                          sub: "حسب المرحلة المسجلة",
+                          sub: `${metric(scope.students.filter((s) => s.status === "منتظم" && s.degree === "ماجستير").length)} ماجستير · ${metric(scope.students.filter((s) => s.status === "منتظم" && s.degree === "دكتوراه").length)} دكتوراه`,
                           tone: "blue",
                           click: () => {
                             clearFilters();
-                            setStage("كتابة الرسالة");
+                            setStatus("منتظم");
                             navigate("students");
                           },
                         },
@@ -566,7 +676,7 @@ export default function App() {
                               <Icon size={21} />
                             </span>
                             <span className="stat-label">{label}</span>
-                            <strong>{number(value)}</strong>
+                            <strong>{metric(value)}</strong>
                             <small>{sub}</small>
                             <ArrowUpLeft className="stat-arrow" size={16} />
                           </button>
@@ -646,7 +756,7 @@ export default function App() {
                         </div>
                         <div className="stage-bars">
                           {stages.slice(0, 6).map((label, i) => {
-                            const count = workspace.students.filter(
+                            const count = scope.students.filter(
                               (s) => s.stage === label,
                             ).length;
                             return (
@@ -663,12 +773,12 @@ export default function App() {
                                     <i className={`stage-dot stage-${i}`} />
                                     {label}
                                   </span>
-                                  <strong>{number(count)}</strong>
+                                  <strong>{metric(count)}</strong>
                                 </div>
                                 <span className="bar-track">
                                   <span
                                     style={{
-                                      width: `${workspace.students.length ? (count / workspace.students.length) * 100 : 0}%`,
+                                      width: `${scope.students.length ? (count / scope.students.length) * 100 : 0}%`,
                                     }}
                                   />
                                 </span>
@@ -679,15 +789,13 @@ export default function App() {
                         <small className="muted">
                           المتخرجون:{" "}
                           {number(
-                            workspace.students.filter(
-                              (s) => s.stage === "متخرج",
-                            ).length,
+                            scope.students.filter((s) => s.stage === "متخرج")
+                              .length,
                           )}{" "}
                           · مرحلة غير موثقة:{" "}
                           {number(
-                            workspace.students.filter(
-                              (s) => s.stage === "غير موثق",
-                            ).length,
+                            scope.students.filter((s) => s.stage === "غير موثق")
+                              .length,
                           )}
                           · بحسب آخر رصد في المصادر
                         </small>
@@ -706,7 +814,7 @@ export default function App() {
                           عرض السجل <ChevronLeft size={15} />
                         </button>
                       </div>
-                      {workspace.students.length ? (
+                      {scope.students.length ? (
                         <div className="table-wrap">
                           <table>
                             <thead>
@@ -720,7 +828,7 @@ export default function App() {
                               </tr>
                             </thead>
                             <tbody>
-                              {[...workspace.students]
+                              {[...scope.students]
                                 .sort((a, b) =>
                                   b.updatedAt.localeCompare(a.updatedAt),
                                 )
@@ -780,7 +888,7 @@ export default function App() {
                         <h1>
                           سجل الطلاب{" "}
                           <span className="heading-count">
-                            {number(workspace.students.length)}
+                            {number(scope.students.length)}
                           </span>
                         </h1>
                         <p>ابحث، صفِّ النتائج، وافتح ملف الطالب بكل تفاصيله.</p>
@@ -847,7 +955,7 @@ export default function App() {
                           {[
                             ...new Set([
                               ...programs.map((p) => p.name),
-                              ...workspace.students.map((s) => s.program),
+                              ...scope.students.map((s) => s.program),
                             ]),
                           ].map((p) => (
                             <option key={p}>{p}</option>
@@ -1052,12 +1160,12 @@ export default function App() {
                       ) : (
                         <Empty
                           title={
-                            workspace.students.length
+                            scope.students.length
                               ? "لا توجد نتائج مطابقة"
                               : "سجل الطلاب جاهز للبدء"
                           }
                           description={
-                            workspace.students.length
+                            scope.students.length
                               ? "جرّب تغيير كلمات البحث أو مسح الفلاتر."
                               : "أضف طالبًا أو استورد كشف Excel أو CSV للبدء."
                           }
@@ -1065,12 +1173,12 @@ export default function App() {
                             <button
                               className="button"
                               onClick={
-                                workspace.students.length
+                                scope.students.length
                                   ? clearFilters
                                   : () => setEditor("new")
                               }
                             >
-                              {workspace.students.length
+                              {scope.students.length
                                 ? "مسح البحث والفلاتر"
                                 : "إضافة طالب"}
                             </button>
@@ -1245,10 +1353,10 @@ export default function App() {
                         </p>
                         <button
                           className="button primary"
-                          disabled={!workspace.students.length}
-                          onClick={() => setExporting(workspace.students)}
+                          disabled={!scope.students.length}
+                          onClick={() => setExporting(scope.students)}
                         >
-                          تجهيز تقرير جميع الطلاب <ArrowLeft size={16} />
+                          تجهيز تقرير النطاق المعروض <ArrowLeft size={16} />
                         </button>
                         <button
                           className="text-button"
@@ -1289,7 +1397,7 @@ export default function App() {
                         </p>
                         <button
                           className="button"
-                          disabled={!workspace.students.length}
+                          disabled={!scope.students.length}
                           onClick={() => exportBackup(workspace)}
                         >
                           حفظ نسخة احتياطية <Download size={16} />
@@ -1533,7 +1641,14 @@ export default function App() {
       {editor && (
         <StudentEditor
           student={editor === "new" ? undefined : editor}
-          onSave={(s) => saveStudent(s)}
+          onSave={async (s) => {
+            await saveStudent(s);
+            if (!s.academicSnapshots.length) {
+              setAcademicYear("all");
+              setAcademicPeriod("");
+              setProfileId(s.id);
+            }
+          }}
           onClose={() => setEditor(null)}
         />
       )}
@@ -1557,6 +1672,7 @@ export default function App() {
       )}
       {exporting && (
         <ExportDialog
+          context={scope.label}
           students={exporting}
           workspace={workspace}
           onClose={() => setExporting(null)}
@@ -1580,7 +1696,11 @@ export default function App() {
           wide
         >
           <div className="print-preview">
-            <PrintableStudents students={printStudents} demo={demo} />
+            <PrintableStudents
+              students={printStudents}
+              demo={demo}
+              context={scope.label}
+            />
           </div>
           <footer className="modal-footer">
             <span>اختر حفظ PDF من نافذة طباعة المتصفح</span>
@@ -1596,7 +1716,11 @@ export default function App() {
           </footer>
         </Modal>
       )}
-      <PrintableStudents students={printStudents} demo={demo} />
+      <PrintableStudents
+        students={printStudents}
+        demo={demo}
+        context={scope.label}
+      />
     </>
   );
 }

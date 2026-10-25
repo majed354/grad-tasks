@@ -21,16 +21,19 @@ import {
 } from "./io";
 import type { Column, ImportFile } from "./io";
 import type { Student, Workspace } from "./model";
+import { canonicalExportStudents } from "./academic";
 export function ExportDialog({
   students,
   workspace,
   onClose,
   onPrint,
+  context = "",
 }: {
   students: Student[];
   workspace: Workspace;
   onClose: () => void;
   onPrint: (s: Student[]) => void;
+  context?: string;
 }) {
   const [selected, setSelected] = useState<Column[]>(defaultColumns);
   const [busy, setBusy] = useState("");
@@ -40,9 +43,13 @@ export function ExportDialog({
     setBusy(format);
     setError("");
     try {
-      if (format === "Excel") await exportExcel(students, selected);
+      if (format === "Excel") await exportExcel(students, selected, context);
       if (format === "CSV") exportCSV(students, selected);
-      if (format === "JSON") exportBackup(workspace, students);
+      if (format === "JSON")
+        exportBackup(
+          workspace,
+          canonicalExportStudents(workspace.students, students),
+        );
     } catch {
       setError("تعذر إنشاء الملف. حاول مجددًا أو اختر صيغة أخرى.");
     } finally {
@@ -57,6 +64,12 @@ export function ExportDialog({
       wide
     >
       <div className="modal-body">
+        {context && (
+          <p className="info-box">
+            نطاق التصدير: {context}. Excel وCSV يعرضان الرصد المحدد؛ JSON يحفظ
+            ملفات الطلاب الأصلية وتاريخها الكامل لإعادة الاستيراد.
+          </p>
+        )}
         <div className="section-line">
           <h3>الحقول المطلوبة</h3>
           <button
@@ -115,8 +128,9 @@ export function ExportDialog({
         </div>
         <div className="info-box">
           Excel يتضمن أوراقًا مستقلة للمقررات والمهام والقرارات وروابط الوثائق
-          والمتابعة والرسائل والمصادر. CSV للحقول المختارة فقط. JSON نسخة كاملة
-          قابلة لإعادة الاستيراد. الطباعة تشمل ملف الطالب الكامل.
+          والمتابعة والرسائل والمصادر والرصد الأكاديمي. CSV للحقول المختارة فقط.
+          JSON نسخة كاملة قابلة لإعادة الاستيراد. الطباعة تشمل ملف الطالب
+          الكامل.
         </div>
         {error && <p className="alert error">{error}</p>}
       </div>
@@ -195,7 +209,10 @@ export function ImportDialog({
             <h3>اختر ملف بيانات الطلاب</h3>
             <p>Excel (.xlsx) أو CSV أو نسخة مدار (.json)</p>
             <span className="button primary">اختيار ملف</span>
-            <small>20 ميجابايت كحد أقصى · ورقة Excel الأولى فقط</small>
+            <small>
+              JSON حتى 64 ميجابايت · Excel وCSV حتى 20 ميجابايت · ورقة Excel
+              الأولى فقط
+            </small>
             <input
               type="file"
               accept=".xlsx,.csv,.json"

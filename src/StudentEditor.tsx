@@ -94,6 +94,12 @@ export default function StudentEditor({
         }}
       >
         <div className="modal-body editor-body">
+          {!draft.academicSnapshots.length && (
+            <p className="info-box">
+              يُحفظ هذا الملف في السجل العام. إضافته أو تعديل حالته لا يغيّر
+              تعداد كشف سنوي حتى يوثّق رصده في ذلك الفصل.
+            </p>
+          )}
           <div className="form-section">
             <h3>
               01 <span>البيانات الأساسية</span>

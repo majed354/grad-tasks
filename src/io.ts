@@ -20,6 +20,7 @@ export const columns = [
   ["status", "حالة القيد"],
   ["stage", "المرحلة"],
   ["asOfAcademicYear", "آخر سنة رصد"],
+  ["asOfPeriod", "الفصل المرصود"],
   ["supervisor", "المشرف"],
   ["coSupervisor", "المشرف المشارك"],
   ["thesisTitle", "عنوان الرسالة"],
@@ -46,6 +47,8 @@ export const defaultColumns: Column[] = [
   "degree",
   "cohort",
   "status",
+  "asOfAcademicYear",
+  "asOfPeriod",
   "stage",
   "supervisor",
 ];
@@ -114,7 +117,11 @@ export function exportBackup(
     "نسخة-بيانات-الدراسات-العليا.grad.json",
   );
 }
-export async function createWorkbook(students: Student[], selected: Column[]) {
+export async function createWorkbook(
+  students: Student[],
+  selected: Column[],
+  context = "",
+) {
   const { default: ExcelJS } = await import("exceljs");
   const wb = new ExcelJS.Workbook();
   wb.creator = "مدار — الدراسات العليا";
@@ -159,7 +166,8 @@ export async function createWorkbook(students: Student[], selected: Column[]) {
       | "documents"
       | "followUps"
       | "evidence"
-      | "researchRecords",
+      | "researchRecords"
+      | "academicSnapshots",
     fields: [string, string][],
   ) =>
     students.flatMap((s) =>
@@ -233,6 +241,8 @@ export async function createWorkbook(students: Student[], selected: Column[]) {
       ["id", "معرف الدليل"],
       ["kind", "نوع الدليل"],
       ["sourceId", "معرف المصدر"],
+      ["sourceName", "اسم الملف"],
+      ["sourcePath", "مسار الملف المحلي"],
       ["url", "الرابط"],
       ["locator", "الصف والصفحة"],
       ["rawDate", "التاريخ الأصلي"],
@@ -263,11 +273,28 @@ export async function createWorkbook(students: Student[], selected: Column[]) {
       ["evidenceIds", "معرفات الأدلة"],
     ]),
   );
+  add(
+    "الرصد الأكاديمي",
+    related("academicSnapshots", [
+      ["id", "معرف الرصد"],
+      ["academicYear", "السنة الأكاديمية"],
+      ["period", "الفصل"],
+      ["sourceDate", "تاريخ استخراج الكشف"],
+      ["status", "الحالة المصدرية"],
+      ["gpa", "المعدل"],
+      ["gpaScale", "مقياس المعدل"],
+      ["admissionDateRaw", "القبول كما ورد"],
+      ["graduationDateRaw", "التخرج كما ورد"],
+      ["expectedGraduationRaw", "التوقع كما ورد"],
+      ["evidenceIds", "معرفات الأدلة"],
+      ["notes", "ملاحظات"],
+    ]),
+  );
   add("عن التصدير", [
     {
       "تاريخ التصدير": new Date().toISOString(),
       "عدد السجلات": students.length,
-      النطاق: "الطلاب المحددون في معاينة التصدير",
+      النطاق: context || "الطلاب المحددون في معاينة التصدير",
       التواريخ:
         "الحقول الأساسية ميلادية؛ التواريخ الأصلية في الرسائل والمصادر تحمل تقويمها؛ دفعة القبول نص مستقل",
       تنبيه:
@@ -276,8 +303,12 @@ export async function createWorkbook(students: Student[], selected: Column[]) {
   ]);
   return wb;
 }
-export async function exportExcel(students: Student[], selected: Column[]) {
-  const wb = await createWorkbook(students, selected);
+export async function exportExcel(
+  students: Student[],
+  selected: Column[],
+  context = "",
+) {
+  const wb = await createWorkbook(students, selected, context);
   const bytes = await wb.xlsx.writeBuffer();
   download(
     new Blob([bytes as BlobPart], {
@@ -292,11 +323,12 @@ export interface ImportFile {
   backup?: Workspace;
 }
 export async function readImport(file: File): Promise<ImportFile> {
-  if (file.size > 20 * 1024 * 1024)
+  const json = file.name.toLowerCase().endsWith(".json");
+  if (file.size > (json ? 64 : 20) * 1024 * 1024)
     throw new Error(
-      "الحد الأقصى للملف 20 ميجابايت. قسّم الملفات الكبيرة إلى دفعات.",
+      `الحد الأقصى ${json ? 64 : 20} ميجابايت. قسّم الملفات الكبيرة إلى دفعات.`,
     );
-  if (file.name.toLowerCase().endsWith(".json")) {
+  if (json) {
     const value = workspaceSchema.parse(JSON.parse(await file.text()));
     return { headers: [], rows: [], backup: value };
   }

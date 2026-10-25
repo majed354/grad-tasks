@@ -1,5 +1,17 @@
 import type { Student } from "./model";
 import { formatDate } from "./ui";
+type Evidence = Student["evidence"][number];
+export function EvidenceReference({ evidence: e }: { evidence: Evidence }) {
+  return e.url ? (
+    <a className="text-link" href={e.url} target="_blank" rel="noreferrer">
+      {e.sourceName || e.kind} · {e.locator}
+    </a>
+  ) : (
+    <span className="source-reference">
+      {e.sourceName || e.kind} · {e.locator} · مصدر محلي، مساره في التوثيق
+    </span>
+  );
+}
 export function ResearchRecords({ student: s }: { student: Student }) {
   return (
     <>
@@ -47,20 +59,13 @@ export function ResearchRecords({ student: s }: { student: Student }) {
             حالة الرسالة لا تثبت تخرج الطالب. التاريخ الهجري محفوظ كما ورد دون
             تحويل تلقائي.
           </small>
+          {r.notes && <p className="field-note">{r.notes}</p>}
           <div className="button-row">
             {r.evidenceIds
               .map((id) => s.evidence.find((e) => e.id === id))
               .filter((e) => !!e)
               .map((e) => (
-                <a
-                  key={e.id}
-                  className="text-link"
-                  href={e.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {e.kind} · {e.locator}
-                </a>
+                <EvidenceReference key={e.id} evidence={e} />
               ))}
           </div>
         </article>
@@ -82,6 +87,17 @@ export function EvidenceRecords({ student: s }: { student: Student }) {
             <bdi>{e.rawDate || "غير مسجل"}</bdi>
           </p>
           <p className="preserve-text">{e.notes}</p>
+          {e.sourcePath && (
+            <>
+              <code className="source-path">{e.sourcePath}</code>
+              <button
+                className="text-button"
+                onClick={() => navigator.clipboard?.writeText(e.sourcePath)}
+              >
+                نسخ مسار المصدر المحلي
+              </button>
+            </>
+          )}
           <small className="muted">
             تاريخ الجمع: {formatDate(e.observedAt)}؛ لا يمثل تاريخ تحديث الحالة.
           </small>

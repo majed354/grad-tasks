@@ -65,3 +65,16 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 ```sh
 python3 scripts/inspect_local_census.py --inventory private-data/local-search-YYYYMMDD/candidates.json --output private-data/local-search-YYYYMMDD --baseline private-data/harvest-YYYYMMDD/output/students-master.json --python-deps /path/to/xlrd
 ```
+
+## دمج الرصد وروابط الرسائل
+
+`scripts/merge_local_data.py` يبدأ بنسخة متصفح فعلية قبل الدمج، ويحافظ على معرفات الطلاب والمقررات والمهام والقرارات والوثائق والمتابعات. يطابق كشوف الأفراد بالرقم والبرنامج والدرجة وقرائن الاسم، ويجمع الرصد بمفتاح الفصل وتاريخ النسخة؛ اختلاف الاسم يعزل للمراجعة. يعيد فحص **كل صف رسالة ذي رقم جامعي** أمام السجل الموسع، بما في ذلك الصفوف التي لم تطابق الدفعة الأصغر سابقًا. لا يعتمد الاسم وحده، ولا يدمج حدود آيات أو أجزاء مختلفة في العنوان لتشابه اسم الكتاب.
+
+سجل الرسائل المؤرخ والمعتمد سابقًا يتقدم على سجل محلي غير مؤرخ؛ لا تمحى نسخة العنوان أو الإشراف الأخرى. حالة العنوانين المختلفين تبقى للمراجعة، ومعلومات الاتصال لا تنقل حالة تخرج إلى السنة الحالية.
+
+```sh
+python3 scripts/merge_local_data.py --baseline private-data/integration-YYYYMMDD/backup-before-merge.grad.json --local private-data/local-search-YYYYMMDD --harvest private-data/harvest-YYYYMMDD --output private-data/integration-YYYYMMDD
+node scripts/validate_harvest.mjs private-data/integration-YYYYMMDD/merged-students.grad.json
+```
+
+ملف الدمج الخاص أكبر من 20 MiB لأنه يحوي التاريخ والأدلة كاملة؛ يدعم التطبيق JSON حتى 64 MiB. تظل الملفات الفعلية مستثناة من Git والنشر، ثم تستورد محليًا في المتصفح بعد نشر عقد البيانات الجديد.

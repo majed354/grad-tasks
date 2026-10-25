@@ -23,6 +23,7 @@ import type { Student } from "./model";
 import { knownStages } from "./catalog";
 import { formatGpa } from "./model";
 import { ResearchRecords, EvidenceRecords } from "./SourceRecords";
+import { AcademicHistory } from "./AcademicHistory";
 type RelatedKey = "tasks" | "courses" | "decisions" | "documents" | "followUps";
 type RelatedItem = Student[RelatedKey][number];
 type RecordField = {
@@ -561,6 +562,7 @@ export default function Profile({
         )}
         {tab === "academic" && (
           <section className="panel">
+            <AcademicHistory student={s} />
             {sectionHead("courses", "المقررات المسجلة")}
             <p className="field-note">
               سجل مصدره الإدخال أو الاستيراد؛ لا يستنتج اجتياز الخطة أو معدلًا
@@ -860,9 +862,11 @@ export default function Profile({
 export function PrintableStudents({
   students,
   demo,
+  context = "",
 }: {
   students: Student[];
   demo: boolean;
+  context?: string;
 }) {
   return (
     <div className="print-report" dir="rtl">
@@ -878,6 +882,12 @@ export function PrintableStudents({
             </p>
           )}
           <h1>ملف الطالب: {s.fullName}</h1>
+          {context && (
+            <p className="field-note">
+              نطاق اختيار الملفات: {context}. يرفق الملف تاريخ الرصد والرسائل
+              ومصادرها كاملة.
+            </p>
+          )}
           <Details
             pairs={[
               ["الرقم الجامعي", s.studentNumber],
@@ -888,6 +898,9 @@ export function PrintableStudents({
               ["دفعة القبول", s.cohort],
               ["حالة القيد", s.status],
               ["المرحلة", s.stage],
+              ["آخر سنة رصد معروضة", s.asOfAcademicYear],
+              ["الفصل المرصود", s.asOfPeriod],
+              ["تاريخ استخراج الكشف", formatDate(s.sourceDate)],
               ["تاريخ القبول", formatDate(s.admissionDate)],
               ["البريد", s.email],
               ["الجوال", s.phone],
@@ -909,6 +922,7 @@ export function PrintableStudents({
             ]}
           />
           <ResearchRecords student={s} />
+          <AcademicHistory student={s} />
           <h2>المقررات</h2>
           {s.courses.length ? (
             <table>

@@ -75,6 +75,8 @@ export const evidenceSchema = z.object({
   rawDate: text,
   calendar: z.enum(["ميلادي", "هجري", "سنة أكاديمية", "غير محدد"]),
   notes: text,
+  sourceName: text.default(""),
+  sourcePath: text.default(""),
 });
 export const researchRecordSchema = z.object({
   id: z.string().min(1),
@@ -95,7 +97,46 @@ export const researchRecordSchema = z.object({
   examiner2: text,
   verification: z.enum(["موثق", "للمراجعة"]),
   evidenceIds: z.array(text).max(100),
+  notes: text.default(""),
 });
+export const academicSnapshotSchema = z
+  .object({
+    id: z.string().min(1),
+    academicYear: z.string().regex(/^14\d{2}$/),
+    period: z.string().regex(/^\d{3}$/),
+    semester: z.enum(["1", "2", "3", "4", "5"]),
+    sourceDate: date,
+    status: z.enum(statuses),
+    stage: z.enum(stages),
+    department: text,
+    gender: z.enum(["ذكر", "أنثى", "غير محدد"]),
+    nationality: text,
+    gpa: z.number().min(0).max(5).nullable(),
+    gpaScale: z.union([z.literal(4), z.literal(5)]).nullable(),
+    admissionDateRaw: text,
+    graduationDateRaw: text,
+    expectedGraduationRaw: text,
+    evidenceIds: z.array(text).min(1).max(100),
+    notes: text,
+  })
+  .superRefine((s, c) => {
+    if (
+      String(1400 + Number(s.period.slice(0, 2))) !== s.academicYear ||
+      s.period.at(-1) !== s.semester
+    )
+      c.addIssue({
+        code: "custom",
+        path: ["period"],
+        message: "الفصل لا يطابق سنة الرصد",
+      });
+    if (s.gpa !== null && s.gpaScale !== null && s.gpa > s.gpaScale)
+      c.addIssue({
+        code: "custom",
+        path: ["gpa"],
+        message: "المعدل يتجاوز مقياسه",
+      });
+  });
+export type AcademicSnapshot = z.infer<typeof academicSnapshotSchema>;
 export const studentSchema = z
   .object({
     id: z.string().min(1),
@@ -145,6 +186,8 @@ export const studentSchema = z
     evidence: z.array(evidenceSchema).max(1000).default([]),
     researchRecords: z.array(researchRecordSchema).max(100).default([]),
     asOfAcademicYear: text.default(""),
+    asOfPeriod: text.default(""),
+    academicSnapshots: z.array(academicSnapshotSchema).max(500).default([]),
     createdAt: z.string().datetime({ offset: true }),
     updatedAt: z.string().datetime({ offset: true }),
   })
@@ -157,6 +200,7 @@ export const studentSchema = z
       "followUps",
       "evidence",
       "researchRecords",
+      "academicSnapshots",
     ] as const) {
       const ids = new Set<string>();
       s[key].forEach((item, index) => {
@@ -182,6 +226,23 @@ export const studentSchema = z
           code: "custom",
           path: ["researchRecords", index, "evidenceIds"],
           message: "مرجع الرسالة غير موجود ضمن مصادر الطالب",
+        });
+    });
+    const periods = new Set<string>();
+    s.academicSnapshots.forEach((r, index) => {
+      const identity = r.period + "|" + r.sourceDate;
+      if (periods.has(identity))
+        c.addIssue({
+          code: "custom",
+          path: ["academicSnapshots", index],
+          message: "رصد مكرر للفصل وتاريخ الاستخراج نفسيهما",
+        });
+      periods.add(identity);
+      if (r.evidenceIds.some((id) => !evidenceIds.has(id)))
+        c.addIssue({
+          code: "custom",
+          path: ["academicSnapshots", index, "evidenceIds"],
+          message: "مرجع الرصد غير موجود ضمن مصادر الطالب",
         });
     });
   });
@@ -304,6 +365,8 @@ export function newStudent(): Student {
     evidence: [],
     researchRecords: [],
     asOfAcademicYear: "",
+    asOfPeriod: "",
+    academicSnapshots: [],
     createdAt: now,
     updatedAt: now,
   };
