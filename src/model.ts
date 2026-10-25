@@ -64,6 +64,38 @@ export const documentSchema = z.object({
   notes: text,
 });
 export const noteSchema = z.object({ id: z.string(), date, text: text.min(1) });
+export const evidenceSchema = z.object({
+  id: z.string().min(1),
+  sourceId: text,
+  kind: text,
+  url,
+  locator: text,
+  observedAt: z.string().datetime({ offset: true }),
+  fields: z.array(text).max(100),
+  rawDate: text,
+  calendar: z.enum(["ميلادي", "هجري", "سنة أكاديمية", "غير محدد"]),
+  notes: text,
+});
+export const researchRecordSchema = z.object({
+  id: z.string().min(1),
+  title: text.min(1),
+  degree: text,
+  program: text,
+  year: text,
+  status: text,
+  defenseDateRaw: text,
+  defenseCalendar: z.enum(["ميلادي", "هجري", "غير محدد"]),
+  supervisorId: text,
+  supervisor: text,
+  coSupervisorId: text,
+  coSupervisor: text,
+  examiner1Id: text,
+  examiner1: text,
+  examiner2Id: text,
+  examiner2: text,
+  verification: z.enum(["موثق", "للمراجعة"]),
+  evidenceIds: z.array(text).max(100),
+});
 export const studentSchema = z
   .object({
     id: z.string().min(1),
@@ -92,7 +124,7 @@ export const studentSchema = z
     phone: text,
     nationality: text,
     gpa: z.number().min(0).max(5).nullable(),
-    gpaScale: z.union([z.literal(4), z.literal(5)]),
+    gpaScale: z.union([z.literal(4), z.literal(5)]).nullable(),
     completedCredits: z.number().min(0).max(1000).nullable(),
     requiredCredits: z.number().min(0).max(1000).nullable(),
     supervisor: text,
@@ -110,8 +142,11 @@ export const studentSchema = z
     decisions: z.array(decisionSchema).max(500),
     documents: z.array(documentSchema).max(500),
     followUps: z.array(noteSchema).max(500),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    evidence: z.array(evidenceSchema).max(1000).default([]),
+    researchRecords: z.array(researchRecordSchema).max(100).default([]),
+    asOfAcademicYear: text.default(""),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
   })
   .superRefine((s, c) => {
     for (const key of [
@@ -120,6 +155,8 @@ export const studentSchema = z
       "decisions",
       "documents",
       "followUps",
+      "evidence",
+      "researchRecords",
     ] as const) {
       const ids = new Set<string>();
       s[key].forEach((item, index) => {
@@ -132,15 +169,30 @@ export const studentSchema = z
         ids.add(item.id);
       });
     }
-    if (s.gpa !== null && s.gpa > s.gpaScale)
+    if (s.gpa !== null && s.gpaScale !== null && s.gpa > s.gpaScale)
       c.addIssue({
         code: "custom",
         path: ["gpa"],
         message: "المعدل يتجاوز مقياسه",
       });
+    const evidenceIds = new Set(s.evidence.map((e) => e.id));
+    s.researchRecords.forEach((r, index) => {
+      if (r.evidenceIds.some((id) => !evidenceIds.has(id)))
+        c.addIssue({
+          code: "custom",
+          path: ["researchRecords", index, "evidenceIds"],
+          message: "مرجع الرسالة غير موجود ضمن مصادر الطالب",
+        });
+    });
   });
 export type Student = z.infer<typeof studentSchema>;
 export type Task = z.infer<typeof taskSchema>;
+export const formatGpa = (s: Pick<Student, "gpa" | "gpaScale">) =>
+  s.gpa === null
+    ? "غير مسجل"
+    : s.gpaScale === null
+      ? `${s.gpa} (المقياس غير موثق)`
+      : `${s.gpa} / ${s.gpaScale}`;
 export const workspaceSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -231,7 +283,7 @@ export function newStudent(): Student {
     phone: "",
     nationality: "",
     gpa: null,
-    gpaScale: 5,
+    gpaScale: null,
     completedCredits: null,
     requiredCredits: null,
     supervisor: "",
@@ -249,6 +301,9 @@ export function newStudent(): Student {
     decisions: [],
     documents: [],
     followUps: [],
+    evidence: [],
+    researchRecords: [],
+    asOfAcademicYear: "",
     createdAt: now,
     updatedAt: now,
   };

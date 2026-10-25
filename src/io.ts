@@ -19,6 +19,7 @@ export const columns = [
   ["admissionDate", "تاريخ القبول"],
   ["status", "حالة القيد"],
   ["stage", "المرحلة"],
+  ["asOfAcademicYear", "آخر سنة رصد"],
   ["supervisor", "المشرف"],
   ["coSupervisor", "المشرف المشارك"],
   ["thesisTitle", "عنوان الرسالة"],
@@ -151,7 +152,14 @@ export async function createWorkbook(students: Student[], selected: Column[]) {
   };
   add("الطلاب", exportRows(students, selected));
   const related = (
-    key: "tasks" | "courses" | "decisions" | "documents" | "followUps",
+    key:
+      | "tasks"
+      | "courses"
+      | "decisions"
+      | "documents"
+      | "followUps"
+      | "evidence"
+      | "researchRecords",
     fields: [string, string][],
   ) =>
     students.flatMap((s) =>
@@ -162,7 +170,9 @@ export async function createWorkbook(students: Student[], selected: Column[]) {
           ["الدرجة", s.degree],
           ...fields.map(([key, label]) => [
             label,
-            (item as Record<string, unknown>)[key],
+            Array.isArray((item as Record<string, unknown>)[key])
+              ? ((item as Record<string, unknown>)[key] as string[]).join("؛ ")
+              : (item as Record<string, unknown>)[key],
           ]),
         ]),
       ),
@@ -217,12 +227,49 @@ export async function createWorkbook(students: Student[], selected: Column[]) {
       ["text", "المتابعة"],
     ]),
   );
+  add(
+    "المصادر",
+    related("evidence", [
+      ["id", "معرف الدليل"],
+      ["kind", "نوع الدليل"],
+      ["sourceId", "معرف المصدر"],
+      ["url", "الرابط"],
+      ["locator", "الصف والصفحة"],
+      ["rawDate", "التاريخ الأصلي"],
+      ["calendar", "التقويم"],
+      ["observedAt", "تاريخ الجمع"],
+      ["fields", "الحقول المؤيدة"],
+      ["notes", "ملاحظات"],
+    ]),
+  );
+  add(
+    "الرسائل",
+    related("researchRecords", [
+      ["id", "معرف الرسالة"],
+      ["title", "عنوان الرسالة"],
+      ["year", "سنة السجل"],
+      ["status", "حالة الرسالة في المصدر"],
+      ["supervisor", "المشرف"],
+      ["supervisorId", "معرف المشرف"],
+      ["coSupervisor", "المشارك"],
+      ["coSupervisorId", "معرف المشارك"],
+      ["examiner1", "المناقش الأول"],
+      ["examiner1Id", "معرف المناقش الأول"],
+      ["examiner2", "المناقش الثاني"],
+      ["examiner2Id", "معرف المناقش الثاني"],
+      ["defenseDateRaw", "تاريخ المناقشة الأصلي"],
+      ["defenseCalendar", "التقويم"],
+      ["verification", "حالة الربط"],
+      ["evidenceIds", "معرفات الأدلة"],
+    ]),
+  );
   add("عن التصدير", [
     {
       "تاريخ التصدير": new Date().toISOString(),
       "عدد السجلات": students.length,
       النطاق: "الطلاب المحددون في معاينة التصدير",
-      التواريخ: "ميلادية بصيغة YYYY-MM-DD؛ دفعة القبول نص مستقل",
+      التواريخ:
+        "الحقول الأساسية ميلادية؛ التواريخ الأصلية في الرسائل والمصادر تحمل تقويمها؛ دفعة القبول نص مستقل",
       تنبيه:
         "الحقول الفارغة غير متاحة؛ الساعات والمعدل مدخلات مصدرية ولا يعاد احتسابها.",
     },

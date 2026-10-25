@@ -10,3 +10,4 @@ private-data/*
 *.tsbuildinfo
 مجلد بلا عنوان/
 qa-local/
+__pycache__/

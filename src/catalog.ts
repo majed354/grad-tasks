@@ -7,6 +7,9 @@ export const statuses = [
   "منسحب",
   "مطوي القيد",
   "متخرج",
+  "مفصول أكاديميًا",
+  "مؤجل قبول",
+  "غير موثق",
 ] as const;
 export const stages = [
   "المقررات",
@@ -16,7 +19,9 @@ export const stages = [
   "المناقشة",
   "استكمال التخرج",
   "متخرج",
+  "غير موثق",
 ] as const;
+export const knownStages = stages.filter((stage) => stage !== "غير موثق");
 // مرجع الأسماء: README مستودع الخطط، تمت مراجعته في 2026-10-25. ليست قواعد مدد أو خطط معتمدة.
 export const programs = [
   { name: "أصول الفقه", degree: "ماجستير", department: "الشريعة" },

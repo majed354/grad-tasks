@@ -55,7 +55,7 @@ export default function StudentEditor({
         type="number"
         min="0"
         step={key === "gpa" ? ".01" : "1"}
-        max={key === "gpa" ? draft.gpaScale : 1000}
+        max={key === "gpa" ? (draft.gpaScale ?? 5) : 1000}
         value={draft[key] ?? ""}
         onChange={(e) =>
           set(key, e.target.value === "" ? null : Number(e.target.value))
@@ -183,9 +183,15 @@ export default function StudentEditor({
               {numeric("gpa", "المعدل المسجل في المصدر")}
               <Field label="مقياس المعدل">
                 <select
-                  value={draft.gpaScale}
-                  onChange={(e) => set("gpaScale", Number(e.target.value))}
+                  value={draft.gpaScale ?? ""}
+                  onChange={(e) =>
+                    set(
+                      "gpaScale",
+                      e.target.value === "" ? null : Number(e.target.value),
+                    )
+                  }
                 >
+                  <option value="">غير موثق</option>
                   <option value={5}>5</option>
                   <option value={4}>4</option>
                 </select>

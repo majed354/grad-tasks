@@ -20,7 +20,9 @@ import {
 import { Badge, Empty, Field, Modal, formatDate, number } from "./ui";
 import { missing, overdue, today, validateStudent } from "./model";
 import type { Student } from "./model";
-import { stages } from "./catalog";
+import { knownStages } from "./catalog";
+import { formatGpa } from "./model";
+import { ResearchRecords, EvidenceRecords } from "./SourceRecords";
 type RelatedKey = "tasks" | "courses" | "decisions" | "documents" | "followUps";
 type RelatedItem = Student[RelatedKey][number];
 type RecordField = {
@@ -309,6 +311,7 @@ export default function Profile({
     ["decisions", "القرارات", Calendar],
     ["documents", "الوثائق", FileText],
     ["followUps", "المتابعة", MessageSquare],
+    ["evidence", "المصادر والتوثيق", FileText],
   ] as const;
   const sectionHead = (key: RelatedKey, title: string) => (
     <div className="section-line">
@@ -413,19 +416,23 @@ export default function Profile({
                   <Badge>{s.stage}</Badge>
                 </div>
                 <div className="journey">
-                  {stages.map((stage, i) => (
+                  {knownStages.map((stage, i) => (
                     <div
                       key={stage}
                       className={
                         s.stage === stage
                           ? "current"
-                          : stages.indexOf(s.stage) > i
+                          : knownStages.indexOf(
+                                s.stage as (typeof knownStages)[number],
+                              ) > i
                             ? "passed"
                             : ""
                       }
                     >
                       <span>
-                        {stages.indexOf(s.stage) > i ? (
+                        {knownStages.indexOf(
+                          s.stage as (typeof knownStages)[number],
+                        ) > i ? (
                           <Check size={13} />
                         ) : (
                           i + 1
@@ -453,10 +460,7 @@ export default function Profile({
                     ["الجنسية", s.nationality],
                     ["تاريخ القبول", formatDate(s.admissionDate)],
                     ["دفعة القبول", s.cohort],
-                    [
-                      "المعدل المسجل",
-                      s.gpa === null ? "" : `${s.gpa} / ${s.gpaScale}`,
-                    ],
+                    ["المعدل المسجل", formatGpa(s)],
                     ["الساعات المجتازة", s.completedCredits],
                     ["الساعات المطلوبة", s.requiredCredits],
                     ["الموعد المستهدف للإنهاء", formatDate(s.expectedEndDate)],
@@ -529,6 +533,12 @@ export default function Profile({
               <section className="panel source-panel">
                 <h3>مصدر البيانات</h3>
                 <p>{s.source || "غير مسجل"}</p>
+                {s.asOfAcademicYear && (
+                  <p>
+                    آخر سنة رصد: {s.asOfAcademicYear}هـ؛ ليست تأكيدًا للحالة
+                    الحالية.
+                  </p>
+                )}
                 <small>تاريخ المصدر: {formatDate(s.sourceDate)}</small>
                 <small>آخر تعديل: {formatDate(s.updatedAt)}</small>
                 {!!missing(s).length && (
@@ -624,10 +634,27 @@ export default function Profile({
                 ["الموعد المستهدف للإنهاء", formatDate(s.expectedEndDate)],
               ]}
             />
+            <ResearchRecords student={s} />
             <div className="info-box">
               أرفق قرارات اعتماد الخطة وتعيين المشرف وتشكيل اللجنة في
               «القرارات»، وروابط الملفات في «الوثائق».
             </div>
+          </section>
+        )}
+        {tab === "evidence" && (
+          <section className="panel">
+            <div className="panel-heading">
+              <h3>المصادر والتوثيق</h3>
+              <span className="badge">{number(s.evidence.length)} دليلًا</span>
+            </div>
+            {s.evidence.length ? (
+              <EvidenceRecords student={s} />
+            ) : (
+              <Empty
+                title="لم تضف أدلة مفصلة بعد"
+                description="تظهر هنا مراجع الصفوف والصفحات والتواريخ الأصلية عند استيراد سجل موثق."
+              />
+            )}
           </section>
         )}
         {tab === "tasks" && (
@@ -864,10 +891,7 @@ export function PrintableStudents({
               ["تاريخ القبول", formatDate(s.admissionDate)],
               ["البريد", s.email],
               ["الجوال", s.phone],
-              [
-                "المعدل المسجل",
-                s.gpa === null ? "غير مسجل" : `${s.gpa} / ${s.gpaScale}`,
-              ],
+              ["المعدل المسجل", formatGpa(s)],
               ["الساعات المجتازة", s.completedCredits],
               ["الساعات المطلوبة", s.requiredCredits],
             ]}
@@ -884,6 +908,7 @@ export function PrintableStudents({
               ["الموعد المستهدف", formatDate(s.expectedEndDate)],
             ]}
           />
+          <ResearchRecords student={s} />
           <h2>المقررات</h2>
           {s.courses.length ? (
             <table>
@@ -968,6 +993,12 @@ export function PrintableStudents({
             <>
               <h2>ملاحظات</h2>
               <p className="preserve-text">{s.notes}</p>
+            </>
+          )}
+          {s.evidence.length > 0 && (
+            <>
+              <h2>المصادر والتوثيق</h2>
+              <EvidenceRecords student={s} />
             </>
           )}
           <footer>

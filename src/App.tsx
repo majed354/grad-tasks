@@ -683,7 +683,13 @@ export default function App() {
                               (s) => s.stage === "متخرج",
                             ).length,
                           )}{" "}
-                          · عرض لحالة السجل الحالية
+                          · مرحلة غير موثقة:{" "}
+                          {number(
+                            workspace.students.filter(
+                              (s) => s.stage === "غير موثق",
+                            ).length,
+                          )}
+                          · بحسب آخر رصد في المصادر
                         </small>
                       </section>
                     </div>
@@ -930,9 +936,9 @@ export default function App() {
                                   <th>الطالب</th>
                                   <th>البرنامج / الدرجة</th>
                                   <th>الدفعة</th>
-                                  <th>المرحلة الحالية</th>
+                                  <th>المرحلة المسجلة</th>
                                   <th>المشرف</th>
-                                  <th>حالة القيد</th>
+                                  <th>آخر حالة مرصودة</th>
                                   <th>إجراءات</th>
                                 </tr>
                               </thead>
@@ -984,6 +990,11 @@ export default function App() {
                                         >
                                           {s.status}
                                         </Badge>
+                                        {s.asOfAcademicYear && (
+                                          <small>
+                                            رصد {s.asOfAcademicYear}هـ
+                                          </small>
+                                        )}
                                       </td>
                                       <td>
                                         <div className="record-controls">
