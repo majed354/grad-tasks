@@ -559,6 +559,10 @@ export default function App() {
                     onImport={() => setImporting(true)}
                     onAdd={() => setEditor("new")}
                     onDelete={deleteStudent}
+                    onResetScope={() => {
+                      setProgram("");
+                      setDegree("");
+                    }}
                   />
                 )}
                 {page === "tasks" && (
@@ -770,7 +774,7 @@ export default function App() {
                         </p>
                         <button
                           className="button"
-                          disabled={!population.length}
+                          disabled={!workspace.students.length}
                           onClick={() => exportBackup(workspace)}
                         >
                           حفظ نسخة احتياطية <Download size={16} />

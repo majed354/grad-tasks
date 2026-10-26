@@ -78,6 +78,7 @@ export default function StudentDirectory({
   onImport,
   onAdd,
   onDelete,
+  onResetScope,
 }: {
   students: Student[];
   available: boolean;
@@ -89,6 +90,7 @@ export default function StudentDirectory({
   onImport: () => void;
   onAdd: () => void;
   onDelete: (s: Student) => void;
+  onResetScope: () => void;
 }) {
   const [query, setQuery] = useState(memory.current.query || "");
   const [group, setGroup] = useState(memory.current.group || "");
@@ -450,25 +452,40 @@ export default function StudentDirectory({
                 ? "لم تُحمّل بيانات الطلاب في هذا المتصفح"
                 : !available
                   ? "لا يوجد كشف لهذه السنة أو الفصل"
-                  : "لا توجد نتائج مطابقة"
+                  : !students.length
+                    ? "لا توجد قيود للبرنامج والدرجة المحددين"
+                    : "لا توجد نتائج مطابقة"
             }
             description={
               !hasWorkspaceData
                 ? "افتح نسخة JSON المحفوظة لتحميل الطلاب هنا. كل متصفح له مساحة مستقلة."
                 : !available
                   ? "اختر سنة أو فصلًا تتوفر بياناته، أو استورد الكشف."
-                  : "يمكنك تغيير الحالة أو المستوى أو مسح فلاتر القائمة."
+                  : !students.length
+                    ? "اختر برنامجًا أو درجة أخرى، أو اعرض جميع البرامج."
+                    : "يمكنك تغيير الحالة أو المستوى أو مسح فلاتر القائمة."
             }
             action={
               <button
                 className="button primary"
-                onClick={!hasWorkspaceData || !available ? onImport : clear}
+                onClick={
+                  !hasWorkspaceData || !available
+                    ? onImport
+                    : !students.length
+                      ? () => {
+                          clear();
+                          onResetScope();
+                        }
+                      : clear
+                }
               >
                 {!hasWorkspaceData
                   ? "فتح نسخة البيانات"
                   : !available
                     ? "استيراد كشف"
-                    : "مسح فلاتر القائمة"}
+                    : !students.length
+                      ? "عرض جميع البرامج"
+                      : "مسح فلاتر القائمة"}
               </button>
             }
           />
