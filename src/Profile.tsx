@@ -24,6 +24,7 @@ import { knownStages } from "./catalog";
 import { formatGpa } from "./model";
 import { ResearchRecords, EvidenceRecords } from "./SourceRecords";
 import { AcademicHistory } from "./AcademicHistory";
+import { CourseResults } from "./CourseResults";
 import {
   courseResult,
   expectedLevel,
@@ -399,12 +400,12 @@ export default function Profile({
           <strong>{levelLabel(seen)}</strong>
           <span>
             {expectedLevel(seen)
-              ? "تقديري من تاريخ القبول؛ لا يثبت الاجتياز"
+              ? "تقديري من أساس الدفعة؛ لا يثبت الاجتياز"
               : "الحالة المثبتة والمستوى الزمني معلومتان مستقلتان"}
           </span>
         </div>
         <div>
-          <small>نتائج المقررات</small>
+          <small>نتائج مقررات تاريخية · مستقلة عن حالة القيد</small>
           <strong>{courseResult(seen)}</strong>
           <button className="text-button" onClick={() => setTab("academic")}>
             السجل الأكاديمي ومصادره ←
@@ -412,7 +413,7 @@ export default function Profile({
         </div>
         <details>
           <summary>أساس التقدير</summary>
-          <p>{LEVEL_METHOD}</p>
+          <p>{expectedLevel(seen)?.method || LEVEL_METHOD}</p>
         </details>
       </section>
       <div
@@ -606,7 +607,8 @@ export default function Profile({
         {tab === "academic" && (
           <section className="panel">
             <AcademicHistory student={s} />
-            {sectionHead("courses", "المقررات المسجلة")}
+            <CourseResults student={s} />
+            {sectionHead("courses", "المقررات المدخلة يدويًا")}
             <p className="field-note">
               سجل مصدره الإدخال أو الاستيراد؛ لا يستنتج اجتياز الخطة أو معدلًا
               جديدًا.
@@ -650,8 +652,8 @@ export default function Profile({
               </div>
             ) : (
               <Empty
-                title="السجل الأكاديمي جاهز للاستكمال"
-                description="أضف المقررات والتقديرات كما وردت في سجل الطالب."
+                title="لا إضافات يدوية للمقررات"
+                description="النتائج المستخرجة من الكشوف معروضة أعلاه بمصادرها. يمكنك إضافة مقررات أخرى كما وردت في السجل."
               />
             )}
           </section>
@@ -954,7 +956,9 @@ export function PrintableStudents({
               ["الساعات المطلوبة", s.requiredCredits],
             ]}
           />
-          <p className="field-note">{LEVEL_METHOD}</p>
+          <p className="field-note">
+            {expectedLevel(s)?.method || LEVEL_METHOD}
+          </p>
           <h2>الرسالة والإشراف</h2>
           <p>{s.thesisTitle || "لم يسجل عنوان الرسالة"}</p>
           <Details
@@ -969,6 +973,7 @@ export function PrintableStudents({
           />
           <ResearchRecords student={s} />
           <AcademicHistory student={s} />
+          <CourseResults student={s} print />
           <h2>المقررات</h2>
           {s.courses.length ? (
             <table>

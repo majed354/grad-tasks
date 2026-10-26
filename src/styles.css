@@ -3237,7 +3237,7 @@ td > small,
 .quick-students td:nth-child(2) {
   min-width: 195px;
 }
-.quick-students td:nth-child(5) {
+.quick-students td[data-label="المستوى المتوقع"] {
   min-width: 185px;
 }
 .status-comparison {
@@ -3475,14 +3475,17 @@ td > small,
   .quick-students .row-actions button {
     font-size: 10px;
   }
-  .quick-students td:nth-child(4) {
+  .quick-students td[data-label="البرنامج"] {
     grid-column: 3;
   }
-  .quick-students td:nth-child(5) {
+  .quick-students td[data-label="المستوى المتوقع"] {
     grid-column: 2;
   }
-  .quick-students td:nth-child(6) {
+  .quick-students td[data-label="القبول"] {
     grid-column: 3;
+  }
+  .quick-students td[data-label="نتائج تاريخية"] {
+    grid-column: 2/-1;
   }
   .quick-students .student-name strong {
     white-space: normal;
@@ -3552,4 +3555,48 @@ td > small,
   .quick-students .row-select input {
     margin: 0;
   }
+}
+.historical-results {
+  margin: 1.5rem 0;
+}
+.historical-results .section-line {
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.historical-results label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.historical-results td {
+  vertical-align: top;
+}
+.historical-results td small {
+  display: block;
+  margin-top: 0.3rem;
+}
+.historical-results details {
+  min-width: 15rem;
+  max-width: 32rem;
+}
+.historical-results summary {
+  cursor: pointer;
+  color: var(--primary, #183e3b);
+}
+.result-observation {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid #dce4e0;
+  font-size: 0.85rem;
+}
+.result-reference {
+  margin-top: 0.4rem;
+  overflow-wrap: anywhere;
+}
+.result-reference .source-path {
+  font-size: 0.7rem;
+  white-space: normal;
+}
+.result-conflict {
+  color: #8d4c00;
+  font-weight: 600;
 }

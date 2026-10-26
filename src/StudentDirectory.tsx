@@ -12,6 +12,7 @@ import {
 import type { Student } from "./model";
 import { statuses, stages } from "./catalog";
 import { Badge, Empty, SearchBox, formatDate, number } from "./ui";
+import { historicalResultSummary } from "./results";
 import {
   expectedLevel,
   filterDirectory,
@@ -29,6 +30,7 @@ export type DirectoryMemory = {
   stage?: string;
   level?: string;
   failed?: boolean;
+  historicalSymbol?: string;
   sort?: string;
 };
 
@@ -98,10 +100,32 @@ export default function StudentDirectory({
   const [stage, setStage] = useState(memory.current.stage || "");
   const [level, setLevel] = useState(memory.current.level || "");
   const [failed, setFailed] = useState(memory.current.failed || false);
+  const [historicalSymbol, setHistoricalSymbol] = useState(
+    memory.current.historicalSymbol || "",
+  );
   const [sort, setSort] = useState(memory.current.sort || "name");
   useEffect(() => {
-    memory.current = { query, group, status, stage, level, failed, sort };
-  }, [memory, query, group, status, stage, level, failed, sort]);
+    memory.current = {
+      query,
+      group,
+      status,
+      stage,
+      level,
+      failed,
+      historicalSymbol,
+      sort,
+    };
+  }, [
+    memory,
+    query,
+    group,
+    status,
+    stage,
+    level,
+    failed,
+    historicalSymbol,
+    sort,
+  ]);
   const [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(20);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -114,6 +138,7 @@ export default function StudentDirectory({
         stage,
         level,
         failed,
+        historicalSymbol,
       }).sort((a, b) =>
         sort === "number"
           ? a.studentNumber.localeCompare(b.studentNumber)
@@ -121,12 +146,33 @@ export default function StudentDirectory({
             ? (expectedLevel(a)?.value || 0) - (expectedLevel(b)?.value || 0)
             : a.fullName.localeCompare(b.fullName, "ar"),
       ),
-    [students, query, group, status, stage, level, failed, sort],
+    [
+      students,
+      query,
+      group,
+      status,
+      stage,
+      level,
+      failed,
+      historicalSymbol,
+      sort,
+    ],
   );
   useEffect(() => {
     setPage(1);
     setSelected(new Set());
-  }, [students, query, group, status, stage, level, failed, sort, pageSize]);
+  }, [
+    students,
+    query,
+    group,
+    status,
+    stage,
+    level,
+    failed,
+    historicalSymbol,
+    sort,
+    pageSize,
+  ]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageNow = Math.min(page, pageCount);
   const chosen = filtered.filter((s) => selected.has(s.id));
@@ -145,6 +191,7 @@ export default function StudentDirectory({
     setStage("");
     setLevel("");
     setFailed(false);
+    setHistoricalSymbol("");
   };
   return (
     <>
@@ -245,7 +292,13 @@ export default function StudentDirectory({
               <option value="level">المستوى الزمني المتوقع</option>
             </select>
           </label>
-          {(query || group || status || stage || level || failed) && (
+          {(query ||
+            group ||
+            status ||
+            stage ||
+            level ||
+            failed ||
+            historicalSymbol) && (
             <button className="text-button" onClick={clear}>
               مسح فلاتر القائمة
             </button>
@@ -253,6 +306,21 @@ export default function StudentDirectory({
           <details className="advanced-filters">
             <summary>تفاصيل إضافية</summary>
             <div>
+              <label>
+                نتائج مقررات تاريخية
+                <select
+                  aria-label="تصفية النتائج التاريخية"
+                  value={historicalSymbol}
+                  onChange={(e) => setHistoricalSymbol(e.target.value)}
+                >
+                  <option value="">كل النتائج</option>
+                  <option value="any">ظهر ع أو ح أو هـ سابقًا</option>
+                  <option value="ع">ع · انقطاع في مقرر سابق</option>
+                  <option value="ح">ح · حرمان في مقرر سابق</option>
+                  <option value="ه">هـ · رسوب في مقرر سابق</option>
+                  <option value="conflict">اختلاف تقديرات المصادر</option>
+                </select>
+              </label>
               <label>
                 مرحلة الرسالة المسجلة
                 <select
@@ -276,7 +344,9 @@ export default function StudentDirectory({
               </label>
               <p>
                 الرسوب يحتاج كشف نتائج؛ لا يستنتج من المعدل أو مدة الدراسة.{" "}
-                {students.some((s) => s.courses.length)
+                {students.some(
+                  (s) => s.courses.length || s.courseResults.length,
+                )
                   ? "التصفية تشمل المقررات المرفقة فقط."
                   : "لم ترفق كشوف مقررات لهذا النطاق."}
               </p>
@@ -321,6 +391,7 @@ export default function StudentDirectory({
                     </th>
                     <th>الطالب</th>
                     <th>حالة القيد</th>
+                    <th>نتائج تاريخية</th>
                     <th>البرنامج / الدرجة</th>
                     <th>المستوى المتوقع زمنيًا</th>
                     <th>تاريخ القبول</th>
@@ -369,6 +440,10 @@ export default function StudentDirectory({
                             {s.asOfPeriod ? ` · ${s.asOfPeriod}` : ""}
                           </small>
                         </td>
+                        <td data-label="نتائج تاريخية">
+                          <small>{historicalResultSummary(s)}</small>
+                          <small>حتى فصل الرصد · لا تغير حالة القيد</small>
+                        </td>
                         <td data-label="البرنامج">
                           <strong>{s.program}</strong>
                           <small>{s.degree}</small>
@@ -376,7 +451,7 @@ export default function StudentDirectory({
                         <td data-label="المستوى المتوقع" title={LEVEL_METHOD}>
                           <strong>{levelLabel(s)}</strong>
                           {expectedLevel(s) && (
-                            <small>من القبول · لا يثبت الاجتياز</small>
+                            <small>من أساس الدفعة · لا يثبت الاجتياز</small>
                           )}
                         </td>
                         <td data-label="القبول">

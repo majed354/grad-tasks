@@ -99,6 +99,32 @@ export const researchRecordSchema = z.object({
   evidenceIds: z.array(text).max(100),
   notes: text.default(""),
 });
+export const courseResultSchema = z.object({
+  id: z.string().min(1),
+  code: text.min(1),
+  title: text.min(1),
+  period: z.string().regex(/^\d{2}[1-5]$/),
+  section: text,
+  activity: text,
+  observations: z
+    .array(
+      z.object({
+        gradeRaw: text,
+        titleRaw: text.default(""),
+        totalRaw: text,
+        sourceDate: date,
+        references: z
+          .array(
+            z.object({ evidenceId: z.string().min(1), locator: text.min(1) }),
+          )
+          .min(1)
+          .max(100),
+      }),
+    )
+    .min(1)
+    .max(100),
+});
+export type CourseResult = z.infer<typeof courseResultSchema>;
 export const academicSnapshotSchema = z
   .object({
     id: z.string().min(1),
@@ -153,6 +179,10 @@ export const studentSchema = z
     gender: z.enum(["ذكر", "أنثى", "غير محدد"]),
     cohort: text,
     admissionDate: date,
+    admissionPeriod: z
+      .string()
+      .regex(/^(?:\d{2}[12])?$/, "فصل بدء الدراسة مثل 481 أو 482")
+      .default(""),
     status: z.enum(statuses),
     stage: z.enum(stages),
     email: z
@@ -188,6 +218,7 @@ export const studentSchema = z
     asOfAcademicYear: text.default(""),
     asOfPeriod: text.default(""),
     academicSnapshots: z.array(academicSnapshotSchema).max(500).default([]),
+    courseResults: z.array(courseResultSchema).max(2000).default([]),
     createdAt: z.string().datetime({ offset: true }),
     updatedAt: z.string().datetime({ offset: true }),
   })
@@ -201,6 +232,7 @@ export const studentSchema = z
       "evidence",
       "researchRecords",
       "academicSnapshots",
+      "courseResults",
     ] as const) {
       const ids = new Set<string>();
       s[key].forEach((item, index) => {
@@ -220,6 +252,32 @@ export const studentSchema = z
         message: "المعدل يتجاوز مقياسه",
       });
     const evidenceIds = new Set(s.evidence.map((e) => e.id));
+    const resultKeys = new Set<string>();
+    s.courseResults.forEach((r, index) => {
+      const identity = JSON.stringify([
+        r.code,
+        r.period,
+        r.activity,
+        r.section,
+      ]);
+      if (resultKeys.has(identity))
+        c.addIssue({
+          code: "custom",
+          path: ["courseResults", index],
+          message: "نتيجة مقرر مكررة في الفصل والنشاط والشعبة نفسها",
+        });
+      resultKeys.add(identity);
+      if (
+        r.observations.some((o) =>
+          o.references.some((ref) => !evidenceIds.has(ref.evidenceId)),
+        )
+      )
+        c.addIssue({
+          code: "custom",
+          path: ["courseResults", index],
+          message: "مرجع نتيجة المقرر غير موجود ضمن مصادر الطالب",
+        });
+    });
     s.researchRecords.forEach((r, index) => {
       if (r.evidenceIds.some((id) => !evidenceIds.has(id)))
         c.addIssue({
@@ -338,6 +396,7 @@ export function newStudent(): Student {
     gender: "غير محدد",
     cohort: "",
     admissionDate: "",
+    admissionPeriod: "",
     status: "منتظم",
     stage: "غير موثق",
     email: "",
@@ -367,6 +426,7 @@ export function newStudent(): Student {
     asOfAcademicYear: "",
     asOfPeriod: "",
     academicSnapshots: [],
+    courseResults: [],
     createdAt: now,
     updatedAt: now,
   };

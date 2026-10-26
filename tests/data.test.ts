@@ -229,6 +229,7 @@ describe("التصدير الحقيقي", () => {
     await roundTrip.xlsx.load(bytes);
     expect(roundTrip.worksheets.map((x) => x.name)).toEqual([
       "الطلاب",
+      "نتائج المقررات",
       "المهام",
       "المقررات",
       "القرارات",

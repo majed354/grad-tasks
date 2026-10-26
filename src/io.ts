@@ -8,7 +8,13 @@ import {
   normalize,
 } from "./model";
 import type { Student, Workspace } from "./model";
-import { courseResult, LEVEL_METHOD, levelLabel } from "./progress";
+import {
+  courseResult,
+  expectedLevel,
+  LEVEL_METHOD,
+  levelLabel,
+} from "./progress";
+import { resultExportRows } from "./results";
 export const columns = [
   ["studentNumber", "الرقم الجامعي"],
   ["fullName", "اسم الطالب"],
@@ -18,6 +24,7 @@ export const columns = [
   ["gender", "الجنس"],
   ["cohort", "دفعة القبول"],
   ["admissionDate", "تاريخ القبول"],
+  ["admissionPeriod", "فصل بدء الدراسة الموثق"],
   ["status", "حالة القيد"],
   ["stage", "المرحلة"],
   ["asOfAcademicYear", "آخر سنة رصد"],
@@ -81,7 +88,7 @@ export function exportRows(students: Student[], selected: ExportColumn[]) {
           k === "expectedLevel"
             ? levelLabel(s)
             : k === "levelMethod"
-              ? LEVEL_METHOD
+              ? expectedLevel(s)?.method || LEVEL_METHOD
               : k === "courseResults"
                 ? courseResult(s)
                 : (s[k] ?? ""),
@@ -176,6 +183,7 @@ export async function createWorkbook(
     };
   };
   add("الطلاب", exportRows(students, selected));
+  add("نتائج المقررات", resultExportRows(students));
   const related = (
     key:
       | "tasks"

@@ -146,7 +146,7 @@ describe("الرصد بحسب السنوات", () => {
       ["studentNumber", "asOfPeriod"],
       "1448 · 481",
     );
-    expect(w.worksheets).toHaveLength(10);
+    expect(w.worksheets).toHaveLength(11);
     expect(w.getWorksheet("الرصد الأكاديمي")?.getRow(2).values).toContain(
       "481",
     );

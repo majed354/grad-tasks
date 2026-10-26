@@ -42,7 +42,17 @@ describe("الحالة والمستوى المتوقع", () => {
     expect(expectedLevel({ ...s, asOfPeriod: "482" })?.value).toBe(2);
     expect(expectedLevel({ ...s, asOfPeriod: "483" })?.value).toBe(2);
     expect(expectedLevel({ ...s, admissionDate: "2025-08-20" })?.value).toBe(3);
-    expect(expectedLevel({ ...s, admissionDate: "2026-01-20" })?.value).toBe(2);
+    expect(
+      expectedLevel({
+        ...s,
+        admissionDate: "2026-01-20",
+        admissionPeriod: "472",
+      })?.value,
+    ).toBe(2);
+    expect(
+      expectedLevel({ ...s, admissionDate: "2026-01-20", cohort: "1448" })
+        ?.value,
+    ).toBe(1);
     expect(expectedLevel({ ...s, status: "مؤجل" })?.method).toContain(
       "لا يخصم",
     );
@@ -62,7 +72,7 @@ describe("الحالة والمستوى المتوقع", () => {
     ])
       expect(expectedLevel({ ...s, ...x })).toBeNull();
     expect(admissionYear("2026-07-01")).toBe(1448);
-    expect(admissionYear("2026-06-30")).toBe(1447);
+    expect(admissionYear("2026-06-30")).toBe(1448);
   });
   it("يطابق البرنامج والدرجة والحالة والبحث العربي والمستوى معًا دون تغيير البيانات", () => {
     const a = example(),
@@ -112,11 +122,11 @@ describe("الحالة والمستوى المتوقع", () => {
     ] as const;
     const rows = exportRows([s], [...selected]);
     expect(rows[0]["المستوى المتوقع زمنيًا (تقديري)"]).toContain("١");
-    expect(rows[0]["أساس تقدير المستوى"]).toBe(LEVEL_METHOD);
+    expect(rows[0]["أساس تقدير المستوى"]).toBe(expectedLevel(s)!.method);
     const workbook = await createWorkbook([s], [...selected], "1448 · 481");
-    expect(workbook.worksheets).toHaveLength(10);
+    expect(workbook.worksheets).toHaveLength(11);
     expect(workbook.getWorksheet("الطلاب")!.getRow(2).values).toContain(
-      LEVEL_METHOD,
+      expectedLevel(s)!.method,
     );
     const { csvText } = await import("../src/io");
     const data = await readImport(

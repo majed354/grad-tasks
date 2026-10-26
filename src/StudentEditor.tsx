@@ -185,6 +185,10 @@ export default function StudentEditor({
                 </select>
               </Field>
               {input("admissionDate", "تاريخ القبول", "date")}
+              {input(
+                "admissionPeriod",
+                "فصل بدء الدراسة الموثق (مثل 481؛ اختياري)",
+              )}
               {input("expectedEndDate", "الموعد المستهدف للإنهاء", "date")}
               {numeric("gpa", "المعدل المسجل في المصدر")}
               <Field label="مقياس المعدل">

@@ -1,5 +1,11 @@
 import type { Student } from "./model";
 import { normalize } from "./model";
+import {
+  hasResultSymbol,
+  historicalResults,
+  historicalResultSummary,
+  resultConflict,
+} from "./results";
 
 export const progressGroups = [
   { id: "continuing", label: "مستمرون", tone: "green" },
@@ -34,7 +40,7 @@ export const statusTone = (s: Pick<Student, "status">) =>
 
 // A transparent time-based estimate, never a transcript level or a passed-credit claim.
 export const LEVEL_METHOD =
-  "تقدير زمني من تاريخ القبول إلى فصل الرصد: فصلان اعتياديان في السنة، يوليو–ديسمبر ثم يناير–يونيو، ومرجع ١٤٤٨ = ٢٠٢٦/٢٠٢٧. لا يخصم التأجيل أو الاعتذار أو الرسوب، ولا يثبت اجتياز المقررات أو تسجيل الرسالة. الصيفي لا يزيد المستوى.";
+  "تقدير زمني: فصل البدء الموثق أولًا، ثم دفعة القبول المسجلة، ثم قرينة كشف فصل أول خلال ستة أشهر من القبول، وإلا السنة الهجرية لتاريخ القبول كتقريب. يفترض بدء الدفعة في الفصل الأول وفصلين اعتياديين سنويًا؛ لا يستنتج فصل البدء من الشهر الميلادي. لا يخصم التأجيل أو الاعتذار أو الرسوب، ولا يثبت المستوى الرسمي أو اجتياز المقررات. الصيفي لا يزيد المستوى.";
 export function admissionYear(date: string) {
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
@@ -43,11 +49,45 @@ export function admissionYear(date: string) {
   )
     return null;
   return (
-    Number(date.slice(0, 4)) - 578 - (Number(date.slice(5, 7)) < 7 ? 1 : 0)
+    Number(
+      new Intl.DateTimeFormat("en-u-ca-islamic-umalqura", {
+        year: "numeric",
+        timeZone: "Asia/Riyadh",
+      })
+        .formatToParts(new Date(date + "T12:00:00Z"))
+        .find((p) => p.type === "year")?.value,
+    ) || null
   );
 }
 export function expectedLevel(s: Student) {
-  const entryYear = admissionYear(s.admissionDate);
+  let entryYear = admissionYear(s.admissionDate),
+    entryTerm = 1;
+  let basis = "سنة القبول الهجرية تقريبًا؛ بدء الفصل الأول مفترض";
+  if (/^\d{2}[12]$/.test(s.admissionPeriod)) {
+    entryYear = 1400 + Number(s.admissionPeriod.slice(0, 2));
+    entryTerm = Number(s.admissionPeriod.at(-1));
+    basis = `فصل بدء الدراسة الموثق ${s.admissionPeriod}`;
+  } else if (/^14\d{2}$/.test(normalize(s.cohort))) {
+    entryYear = Number(normalize(s.cohort));
+    basis = "دفعة القبول المسجلة؛ بدء الفصل الأول مفترض";
+  } else if (s.admissionDate) {
+    const entry = s.academicSnapshots
+      .filter((x) => {
+        const days =
+          (Date.parse(x.sourceDate) - Date.parse(s.admissionDate)) / 86400000;
+        return (
+          x.period.endsWith("1") &&
+          x.admissionDateRaw === s.admissionDate &&
+          days >= 0 &&
+          days <= 183
+        );
+      })
+      .sort((a, b) => a.period.localeCompare(b.period))[0];
+    if (entry) {
+      entryYear = Number(entry.academicYear);
+      basis = `قرينة دفعة من كشف الفصل الأول ${entry.period} القريب من تاريخ القبول`;
+    }
+  }
   if (
     entryYear === null ||
     !/^14\d{2}$/.test(s.asOfAcademicYear) ||
@@ -57,11 +97,16 @@ export function expectedLevel(s: Student) {
     return null;
   if (s.sourceDate && s.admissionDate > s.sourceDate) return null;
   if (!["continuing", "interrupted"].includes(progressGroup(s))) return null;
-  const entryTerm = Number(s.admissionDate.slice(5, 7)) < 7 ? 2 : 1;
   const term = Math.min(Number(s.asOfPeriod.at(-1)), 2);
   const level =
     (Number(s.asOfAcademicYear) - entryYear) * 2 + term - entryTerm + 1;
-  return level >= 1 ? { value: level, entryYear, method: LEVEL_METHOD } : null;
+  return level >= 1
+    ? {
+        value: level,
+        entryYear,
+        method: `${LEVEL_METHOD} أساس الملف: ${basis}.`,
+      }
+    : null;
 }
 export function levelLabel(s: Student) {
   const estimate = expectedLevel(s);
@@ -74,6 +119,7 @@ export function levelLabel(s: Student) {
     : "يلزم تاريخ قبول وفصل رصد";
 }
 export function courseResult(s: Student) {
+  if (s.courseResults.length) return historicalResultSummary(s);
   if (!s.courses.length) return "لم يرفق كشف درجات";
   const failed = s.courses.filter((c) => c.result === "غير مجتاز").length;
   return failed
@@ -97,6 +143,7 @@ export type DirectoryFilters = {
   stage?: string;
   level?: string;
   failed?: boolean;
+  historicalSymbol?: string;
 };
 export function filterDirectory(students: Student[], f: DirectoryFilters) {
   return students.filter(
@@ -106,6 +153,14 @@ export function filterDirectory(students: Student[], f: DirectoryFilters) {
       (!f.stage || s.stage === f.stage) &&
       (!f.level || String(expectedLevel(s)?.value || "") === f.level) &&
       (!f.failed || s.courses.some((c) => c.result === "غير مجتاز")) &&
+      (!f.historicalSymbol ||
+        historicalResults(s).some((r) =>
+          f.historicalSymbol === "conflict"
+            ? resultConflict(r)
+            : f.historicalSymbol === "any"
+              ? ["ع", "ح", "ه"].some((code) => hasResultSymbol(r, code))
+              : hasResultSymbol(r, f.historicalSymbol!),
+        )) &&
       (!f.query ||
         normalize(
           [
