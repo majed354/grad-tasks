@@ -24,6 +24,14 @@ import { knownStages } from "./catalog";
 import { formatGpa } from "./model";
 import { ResearchRecords, EvidenceRecords } from "./SourceRecords";
 import { AcademicHistory } from "./AcademicHistory";
+import {
+  courseResult,
+  expectedLevel,
+  levelLabel,
+  LEVEL_METHOD,
+  statusLabel,
+  statusTone,
+} from "./progress";
 type RelatedKey = "tasks" | "courses" | "decisions" | "documents" | "followUps";
 type RelatedItem = Student[RelatedKey][number];
 type RecordField = {
@@ -238,6 +246,7 @@ export function Details({ pairs }: { pairs: [string, unknown][] }) {
 }
 export default function Profile({
   student: s,
+  observation,
   onBack,
   onEdit,
   onUpdate,
@@ -245,12 +254,14 @@ export default function Profile({
   onPrint,
 }: {
   student: Student;
+  observation?: Student;
   onBack: () => void;
   onEdit: () => void;
   onUpdate: (s: Student, action: string) => Promise<void>;
   onExport: () => void;
   onPrint: () => void;
 }) {
+  const seen = observation || s;
   const [tab, setTab] = useState("overview");
   const [editor, setEditor] = useState<{
     key: RelatedKey;
@@ -360,24 +371,49 @@ export default function Profile({
             <bdi>{s.studentNumber}</bdi>
             <span>·</span>
             {s.degree} {s.program}
-            <span>·</span>دفعة {s.cohort || "غير مسجلة"}
+            <span>·</span>
+            {s.cohort
+              ? `دفعة ${s.cohort}`
+              : `قبول ${formatDate(seen.admissionDate)}`}
           </p>
         </div>
-        <Badge
-          tone={
-            s.status === "منتظم"
-              ? "green"
-              : s.status === "متخرج"
-                ? "blue"
-                : "amber"
-          }
-        >
-          {s.status}
-        </Badge>
+        <Badge tone={statusTone(seen)}>{statusLabel(seen)}</Badge>
         <button className="button" onClick={onEdit}>
           <Pencil size={16} />
           تعديل الملف
         </button>
+      </section>
+      <section className="panel progress-summary" aria-label="ملخص حالة الطالب">
+        <div>
+          <small>حالة القيد في الرصد المعروض</small>
+          <strong>{statusLabel(seen)}</strong>
+          <span>
+            {seen.asOfAcademicYear
+              ? `${seen.asOfAcademicYear}هـ · ${seen.asOfPeriod}`
+              : "رصد غير مؤرخ"}{" "}
+            · المصدر {formatDate(seen.sourceDate)}
+          </span>
+        </div>
+        <div>
+          <small>المستوى المتوقع زمنيًا</small>
+          <strong>{levelLabel(seen)}</strong>
+          <span>
+            {expectedLevel(seen)
+              ? "تقديري من تاريخ القبول؛ لا يثبت الاجتياز"
+              : "الحالة المثبتة والمستوى الزمني معلومتان مستقلتان"}
+          </span>
+        </div>
+        <div>
+          <small>نتائج المقررات</small>
+          <strong>{courseResult(seen)}</strong>
+          <button className="text-button" onClick={() => setTab("academic")}>
+            السجل الأكاديمي ومصادره ←
+          </button>
+        </div>
+        <details>
+          <summary>أساس التقدير</summary>
+          <p>{LEVEL_METHOD}</p>
+        </details>
       </section>
       <div
         className="profile-tabs"
@@ -416,33 +452,40 @@ export default function Profile({
                   <h3>المسار الدراسي</h3>
                   <Badge>{s.stage}</Badge>
                 </div>
-                <div className="journey">
-                  {knownStages.map((stage, i) => (
-                    <div
-                      key={stage}
-                      className={
-                        s.stage === stage
-                          ? "current"
-                          : knownStages.indexOf(
-                                s.stage as (typeof knownStages)[number],
-                              ) > i
-                            ? "passed"
-                            : ""
-                      }
-                    >
-                      <span>
-                        {knownStages.indexOf(
-                          s.stage as (typeof knownStages)[number],
-                        ) > i ? (
-                          <Check size={13} />
-                        ) : (
-                          i + 1
-                        )}
-                      </span>
-                      <small>{stage}</small>
-                    </div>
-                  ))}
-                </div>
+                {s.stage !== "غير موثق" ? (
+                  <div className="journey">
+                    {knownStages.map((stage, i) => (
+                      <div
+                        key={stage}
+                        className={
+                          s.stage === stage
+                            ? "current"
+                            : knownStages.indexOf(
+                                  s.stage as (typeof knownStages)[number],
+                                ) > i
+                              ? "passed"
+                              : ""
+                        }
+                      >
+                        <span>
+                          {knownStages.indexOf(
+                            s.stage as (typeof knownStages)[number],
+                          ) > i ? (
+                            <Check size={13} />
+                          ) : (
+                            i + 1
+                          )}
+                        </span>
+                        <small>{stage}</small>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted">
+                    كشف القيد لا يحدد مرحلة الرسالة. راجع «الرسالة والإشراف»
+                    للروابط المثبتة و«القرارات» للتكليفات والاعتمادات.
+                  </p>
+                )}
                 <p className="field-note">
                   المسار حسب المرحلة المسجلة؛ لا يثبت اعتماد القرارات أو اكتمال
                   المتطلبات.
@@ -459,9 +502,9 @@ export default function Profile({
                     ["البرنامج", `${s.degree} ${s.program}`],
                     ["الجنس", s.gender],
                     ["الجنسية", s.nationality],
-                    ["تاريخ القبول", formatDate(s.admissionDate)],
+                    ["تاريخ القبول", formatDate(seen.admissionDate)],
                     ["دفعة القبول", s.cohort],
-                    ["المعدل المسجل", formatGpa(s)],
+                    ["المعدل المسجل في الرصد المعروض", formatGpa(seen)],
                     ["الساعات المجتازة", s.completedCredits],
                     ["الساعات المطلوبة", s.requiredCredits],
                     ["الموعد المستهدف للإنهاء", formatDate(s.expectedEndDate)],
@@ -897,6 +940,8 @@ export function PrintableStudents({
               ["الجنسية", s.nationality],
               ["دفعة القبول", s.cohort],
               ["حالة القيد", s.status],
+              ["المستوى المتوقع زمنيًا", levelLabel(s)],
+              ["نتائج المقررات المرفقة", courseResult(s)],
               ["المرحلة", s.stage],
               ["آخر سنة رصد معروضة", s.asOfAcademicYear],
               ["الفصل المرصود", s.asOfPeriod],
@@ -909,6 +954,7 @@ export function PrintableStudents({
               ["الساعات المطلوبة", s.requiredCredits],
             ]}
           />
+          <p className="field-note">{LEVEL_METHOD}</p>
           <h2>الرسالة والإشراف</h2>
           <p>{s.thesisTitle || "لم يسجل عنوان الرسالة"}</p>
           <Details

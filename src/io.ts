@@ -8,6 +8,7 @@ import {
   normalize,
 } from "./model";
 import type { Student, Workspace } from "./model";
+import { courseResult, LEVEL_METHOD, levelLabel } from "./progress";
 export const columns = [
   ["studentNumber", "الرقم الجامعي"],
   ["fullName", "اسم الطالب"],
@@ -40,7 +41,14 @@ export const columns = [
   ["notes", "ملاحظات"],
 ] as const;
 export type Column = (typeof columns)[number][0];
-export const defaultColumns: Column[] = [
+export const exportColumns = [
+  ...columns,
+  ["expectedLevel", "المستوى المتوقع زمنيًا (تقديري)"],
+  ["levelMethod", "أساس تقدير المستوى"],
+  ["courseResults", "نتائج المقررات المرفقة"],
+] as const;
+export type ExportColumn = (typeof exportColumns)[number][0];
+export const defaultColumns: ExportColumn[] = [
   "studentNumber",
   "fullName",
   "program",
@@ -49,7 +57,8 @@ export const defaultColumns: Column[] = [
   "status",
   "asOfAcademicYear",
   "asOfPeriod",
-  "stage",
+  "expectedLevel",
+  "levelMethod",
   "supervisor",
 ];
 export const download = (blob: Blob, name: string) => {
@@ -62,16 +71,25 @@ export const download = (blob: Blob, name: string) => {
 };
 export const safeCell = (v: unknown) =>
   typeof v === "string" && /^[\s\uFEFF]*[=+\-@]/.test(v) ? `'${v}` : (v ?? "");
-export function exportRows(students: Student[], selected: Column[]) {
+export function exportRows(students: Student[], selected: ExportColumn[]) {
   return students.map((s) =>
     Object.fromEntries(
-      columns
+      exportColumns
         .filter(([k]) => selected.includes(k))
-        .map(([k, label]) => [label, s[k] ?? ""]),
+        .map(([k, label]) => [
+          label,
+          k === "expectedLevel"
+            ? levelLabel(s)
+            : k === "levelMethod"
+              ? LEVEL_METHOD
+              : k === "courseResults"
+                ? courseResult(s)
+                : (s[k] ?? ""),
+        ]),
     ),
   );
 }
-export function csvText(students: Student[], selected: Column[]) {
+export function csvText(students: Student[], selected: ExportColumn[]) {
   return (
     "\uFEFF" +
     Papa.unparse(
@@ -84,7 +102,7 @@ export function csvText(students: Student[], selected: Column[]) {
     )
   );
 }
-export function exportCSV(students: Student[], selected: Column[]) {
+export function exportCSV(students: Student[], selected: ExportColumn[]) {
   download(
     new Blob([csvText(students, selected)], { type: "text/csv;charset=utf-8" }),
     "طلاب-الدراسات-العليا.csv",
@@ -119,7 +137,7 @@ export function exportBackup(
 }
 export async function createWorkbook(
   students: Student[],
-  selected: Column[],
+  selected: ExportColumn[],
   context = "",
 ) {
   const { default: ExcelJS } = await import("exceljs");
@@ -305,7 +323,7 @@ export async function createWorkbook(
 }
 export async function exportExcel(
   students: Student[],
-  selected: Column[],
+  selected: ExportColumn[],
   context = "",
 ) {
   const wb = await createWorkbook(students, selected, context);

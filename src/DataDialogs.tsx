@@ -10,6 +10,7 @@ import {
 import { Modal, Field, number } from "./ui";
 import {
   columns,
+  exportColumns,
   defaultColumns,
   exportCSV,
   exportExcel,
@@ -19,7 +20,7 @@ import {
   guessMapping,
   planImport,
 } from "./io";
-import type { Column, ImportFile } from "./io";
+import type { Column, ExportColumn, ImportFile } from "./io";
 import type { Student, Workspace } from "./model";
 import { canonicalExportStudents } from "./academic";
 export function ExportDialog({
@@ -35,7 +36,7 @@ export function ExportDialog({
   onPrint: (s: Student[]) => void;
   context?: string;
 }) {
-  const [selected, setSelected] = useState<Column[]>(defaultColumns);
+  const [selected, setSelected] = useState<ExportColumn[]>(defaultColumns);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const rows = exportRows(students, selected);
@@ -76,19 +77,19 @@ export function ExportDialog({
             className="text-button"
             onClick={() =>
               setSelected(
-                selected.length === columns.length
+                selected.length === exportColumns.length
                   ? defaultColumns
-                  : columns.map(([k]) => k),
+                  : exportColumns.map(([k]) => k),
               )
             }
           >
-            {selected.length === columns.length
+            {selected.length === exportColumns.length
               ? "الحقول الأساسية"
               : "تحديد جميع الحقول"}
           </button>
         </div>
         <div className="column-picker">
-          {columns.map(([key, label]) => (
+          {exportColumns.map(([key, label]) => (
             <label key={key}>
               <input
                 type="checkbox"
@@ -108,7 +109,7 @@ export function ExportDialog({
           <table>
             <thead>
               <tr>
-                {columns
+                {exportColumns
                   .filter(([k]) => selected.includes(k))
                   .map(([key, label]) => (
                     <th key={key}>{label}</th>

@@ -7,25 +7,19 @@ import {
   LibraryBig,
   Settings,
   GraduationCap,
-  Plus,
   Upload,
   Download,
   ChevronLeft,
-  ChevronRight,
   ArrowUpLeft,
   Menu,
   X,
   ShieldCheck,
   FlaskConical,
   CalendarDays,
-  Search,
   CircleHelp,
   Check,
-  Trash2,
   FolderOpen,
   Clock3,
-  BookOpen,
-  ListFilter,
   ArrowLeft,
   Database,
   ExternalLink,
@@ -42,10 +36,13 @@ import {
   today,
 } from "./model";
 import type { Student, Workspace } from "./model";
-import { programs, statuses, stages, sources } from "./catalog";
+import { programs, sources } from "./catalog";
 import { exportBackup, columns, download } from "./io";
 import { demoWorkspace } from "./demo";
 import StudentEditor from "./StudentEditor";
+import StudentDirectory, { ProgramSummary } from "./StudentDirectory";
+import type { DirectoryMemory } from "./StudentDirectory";
+import { filterPopulation } from "./progress";
 import Profile, { PrintableStudents } from "./Profile";
 import { ExportDialog, ImportDialog } from "./DataDialogs";
 import {
@@ -58,33 +55,29 @@ import {
 type Page =
   "dashboard" | "students" | "tasks" | "reports" | "sources" | "settings";
 const navigation = [
-  { id: "dashboard", label: "لوحة المتابعة", icon: LayoutDashboard },
-  { id: "students", label: "سجل الطلاب", icon: Users },
+  { id: "dashboard", label: "ملخص البرامج", icon: LayoutDashboard },
+  { id: "students", label: "الطلاب والحالات", icon: Users },
   { id: "tasks", label: "المهام والمواعيد", icon: CheckSquare },
   { id: "reports", label: "التقارير والتصدير", icon: FileDown },
   { id: "sources", label: "المصادر والربط", icon: LibraryBig },
   { id: "settings", label: "إعدادات المساحة", icon: Settings },
 ] as const;
 export default function App() {
+  const directoryMemory = useRef<DirectoryMemory>({});
   const [workspace, setWorkspace] = useState<Workspace>(emptyWorkspace);
   const current = useRef(workspace);
   const lock = useRef(false);
   const [ready, setReady] = useState(false),
     [loadError, setLoadError] = useState(""),
     [demo, setDemo] = useState(false),
-    [page, setPage] = useState<Page>("dashboard"),
+    [page, setPage] = useState<Page>("students"),
     [mobileNav, setMobileNav] = useState(false);
   const [query, setQuery] = useState(""),
     [degree, setDegree] = useState(""),
-    [program, setProgram] = useState(""),
-    [status, setStatus] = useState(""),
-    [stage, setStage] = useState(""),
-    [sort, setSort] = useState("updated"),
-    [rowPage, setRowPage] = useState(1);
+    [program, setProgram] = useState("");
   const [academicYear, setAcademicYear] = useState(DEFAULT_ACADEMIC_YEAR);
   const [academicPeriod, setAcademicPeriod] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set()),
-    [profileId, setProfileId] = useState<string | null>(null),
+  const [profileId, setProfileId] = useState<string | null>(null),
     [editor, setEditor] = useState<Student | "new" | null>(null),
     [importing, setImporting] = useState(false),
     [exporting, setExporting] = useState<Student[] | null>(null),
@@ -113,17 +106,21 @@ export default function App() {
     const timer = setTimeout(() => setToast(""), 5000);
     return () => clearTimeout(timer);
   }, [toast]);
-  useEffect(
-    () => setRowPage(1),
-    [query, degree, program, status, stage, sort, academicYear, academicPeriod],
-  );
   const scope = useMemo(
     () => academicScope(workspace.students, academicYear, academicPeriod),
     [workspace.students, academicYear, academicPeriod],
   );
+  const population = useMemo(
+    () => filterPopulation(scope.students, program, degree),
+    [scope.students, program, degree],
+  );
+  const scopeLabel =
+    scope.label +
+    (program ? " · " + program : " · جميع البرامج") +
+    (degree ? " · " + degree : "");
   const scopeIds = useMemo(
-    () => new Set(scope.students.map((s) => s.id)),
-    [scope.students],
+    () => new Set(population.map((s) => s.id)),
+    [population],
   );
   const years = useMemo(
     () => availableYears(workspace.students),
@@ -188,9 +185,8 @@ export default function App() {
   const startDemo = () => {
     accept(demoWorkspace());
     setDemo(true);
-    setSelected(new Set());
     setProfileId(null);
-    setPage("dashboard");
+    setPage("students");
     setAcademicYear(DEFAULT_ACADEMIC_YEAR);
     setAcademicPeriod("");
     setToast(
@@ -202,43 +198,11 @@ export default function App() {
       accept(await loadWorkspace());
       setDemo(false);
       setProfileId(null);
-      setSelected(new Set());
       setToast("عدت إلى بيانات هذا المتصفح");
     } catch {
       setToast("تعذر فتح البيانات المحلية. أعد المحاولة.");
     }
   };
-  const filtered = useMemo(
-    () =>
-      scope.students
-        .filter(
-          (s) =>
-            (!degree || s.degree === degree) &&
-            (!program || s.program === program) &&
-            (!status || s.status === status) &&
-            (!stage || s.stage === stage) &&
-            (!query ||
-              normalize(
-                [
-                  s.fullName,
-                  s.studentNumber,
-                  s.thesisTitle,
-                  s.supervisor,
-                  s.program,
-                  s.department,
-                ].join(" "),
-              ).includes(normalize(query))),
-        )
-        .sort((a, b) =>
-          sort === "name"
-            ? a.fullName.localeCompare(b.fullName, "ar")
-            : sort === "number"
-              ? a.studentNumber.localeCompare(b.studentNumber)
-              : b.updatedAt.localeCompare(a.updatedAt),
-        ),
-    [scope.students, degree, program, status, stage, query, sort],
-  );
-  const selectedStudents = scope.students.filter((s) => selected.has(s.id));
   const profile = workspace.students.find((s) => s.id === profileId);
   const allTasks = workspace.students
     .filter((s) => scopeIds.has(s.id))
@@ -246,7 +210,7 @@ export default function App() {
     .sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"));
   const openTasks = allTasks.filter((t) => !t.done);
   const lateTasks = allTasks.filter(overdue);
-  const incomplete = scope.students.filter((s) => missing(s).length);
+  const incomplete = population.filter((s) => missing(s).length);
   const openProfile = (id: string) => {
     setProfileId(id);
     setMobileNav(false);
@@ -256,6 +220,12 @@ export default function App() {
     setPrintStudents(students);
     setPrintPreview(true);
   }, []);
+  const clearFilters = () => {
+    setQuery("");
+    setDegree("");
+    setProgram("");
+    directoryMemory.current = {};
+  };
   const deleteStudent = async (s: Student) => {
     if (
       !confirm(
@@ -269,20 +239,10 @@ export default function App() {
         "حذف ملف طالب",
         s.id,
       );
-      setSelected((ids) => new Set([...ids].filter((id) => id !== s.id)));
     } catch (e) {
       setToast(e instanceof Error ? e.message : "تعذر الحذف");
     }
   };
-  const clearFilters = () => {
-    setQuery("");
-    setDegree("");
-    setProgram("");
-    setStatus("");
-    setStage("");
-  };
-  const metric = (value: number) =>
-    scope.available ? number(value) : "غير متاح";
   if (loadError)
     return (
       <div className="fatal">
@@ -301,23 +261,6 @@ export default function App() {
         <p>جارٍ فتح مساحة العمل…</p>
       </div>
     );
-  const StudentName = ({ student: s }: { student: Student }) => (
-    <button className="student-name" onClick={() => openProfile(s.id)}>
-      <span className={`avatar ${s.gender === "أنثى" ? "rose" : ""}`}>
-        {s.fullName
-          .split(" ")
-          .slice(0, 2)
-          .map((x) => x[0])
-          .join("")}
-      </span>
-      <span>
-        <strong>{s.fullName}</strong>
-        <small>
-          <bdi>{s.studentNumber}</bdi>
-        </small>
-      </span>
-    </button>
-  );
   return (
     <>
       <div className="app-shell">
@@ -334,7 +277,7 @@ export default function App() {
             href="#"
             onClick={(e) => {
               e.preventDefault();
-              navigate("dashboard");
+              navigate("students");
             }}
           >
             <span className="brand-mark">
@@ -370,7 +313,7 @@ export default function App() {
                 )}
                 {id === "students" && (
                   <span className="nav-count">
-                    {scope.available ? number(scope.students.length) : "—"}
+                    {scope.available ? number(population.length) : "—"}
                   </span>
                 )}
               </button>
@@ -461,9 +404,7 @@ export default function App() {
                       onChange={(e) => {
                         setAcademicYear(e.target.value);
                         setAcademicPeriod("");
-                        setSelected(new Set());
                         setProfileId(null);
-                        clearFilters();
                       }}
                     >
                       {years.map((y) => (
@@ -483,9 +424,7 @@ export default function App() {
                         value={scope.period}
                         onChange={(e) => {
                           setAcademicPeriod(e.target.value);
-                          setSelected(new Set());
                           setProfileId(null);
-                          clearFilters();
                         }}
                       >
                         {scope.periods.map((p) => (
@@ -496,32 +435,82 @@ export default function App() {
                       </select>
                     </label>
                   )}
-                  <div className="scope-summary">
-                    <strong>
-                      {academicYear === "all"
-                        ? "السجل التاريخي لجميع السنوات"
-                        : `${yearLabel(academicYear)}هـ · ${scope.period ? semesterName(scope.period) : "لا يوجد كشف موثق"}`}
-                    </strong>
-                    <span>
-                      {scope.sourceDate
-                        ? `تاريخ استخراج الكشف: ${formatDate(scope.sourceDate)}`
-                        : academicYear === "all"
-                          ? `${number(workspace.students.length)} قيدًا محفوظًا؛ قد تختلف سنوات رصدها`
-                          : "لم تتوفر بيانات مؤرخة لهذا النطاق"}
-                    </span>
-                  </div>
+                  <label>
+                    البرنامج
+                    <select
+                      aria-label="تصفية البرنامج"
+                      value={program}
+                      onChange={(e) => setProgram(e.target.value)}
+                    >
+                      <option value="">جميع البرامج</option>
+                      {[
+                        ...new Set([
+                          ...programs.map((p) => p.name),
+                          ...workspace.students.map((s) => s.program),
+                        ]),
+                      ]
+                        .sort((a, b) => a.localeCompare(b, "ar"))
+                        .map((p) => (
+                          <option key={p}>{p}</option>
+                        ))}
+                    </select>
+                  </label>
+                  <label>
+                    الدرجة
+                    <select
+                      aria-label="تصفية الدرجة"
+                      value={degree}
+                      onChange={(e) => setDegree(e.target.value)}
+                    >
+                      <option value="">جميع الدرجات</option>
+                      <option>ماجستير</option>
+                      <option>دكتوراه</option>
+                    </select>
+                  </label>
+                  {(program || degree) && (
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setProgram("");
+                        setDegree("");
+                      }}
+                    >
+                      كل البرامج والدرجات
+                    </button>
+                  )}
                 </div>
-                <p className="field-note">
-                  {academicYear === "1448"
-                    ? "بيانات الفصل الأول أولية؛ لا تمثل تعداد نهاية السنة. "
-                    : ""}
-                  القوائم والأرقام تتبع السنة والفصل المحددين. ملف الطالب
-                  والرسائل يعرضان تاريخهما الكامل مع مصادره.
-                </p>
+                <div className="scope-summary">
+                  <strong>
+                    {academicYear === "all"
+                      ? "السجل التاريخي لجميع السنوات"
+                      : `${yearLabel(academicYear)}هـ · ${scope.period ? semesterName(scope.period) : "لا يوجد كشف موثق"}`}
+                  </strong>
+                  <span>
+                    {scope.sourceDate
+                      ? `تاريخ استخراج الكشف: ${formatDate(scope.sourceDate)}`
+                      : academicYear === "all"
+                        ? "آخر رصد لكل قيد؛ تختلف سنواته"
+                        : workspace.students.length
+                          ? "لا يوجد كشف لهذا النطاق"
+                          : "لم تُحمّل البيانات في هذا المتصفح"}
+                  </span>
+                </div>
+                {academicYear === "1448" && scope.available && (
+                  <small className="scope-caveat">
+                    لقطة الفصل الأول أولية، وليست تعداد نهاية السنة.
+                  </small>
+                )}
                 {!scope.available && academicYear !== "all" && (
                   <p className="alert">
-                    الأرقام غير متاحة لهذا النطاق. استورد كشفًا موثقًا أو اختر
-                    سنة أخرى؛ غياب البيانات لا يعني أن عدد الطلاب صفر.
+                    {workspace.students.length
+                      ? "لا توجد بيانات كشف لهذا النطاق؛ اختر سنة أو فصلًا آخر."
+                      : "هذه مساحة متصفح خالية. البيانات المحفوظة في متصفح آخر لا تظهر تلقائيًا هنا."}
+                    <button
+                      className="text-button"
+                      onClick={() => setImporting(true)}
+                    >
+                      فتح نسخة البيانات
+                    </button>
                   </p>
                 )}
               </section>
@@ -530,663 +519,47 @@ export default function App() {
               <Profile
                 key={profile.id}
                 student={profile}
+                observation={scope.students.find((s) => s.id === profile.id)}
                 onBack={() => navigate("students")}
                 onEdit={() => setEditor(profile)}
                 onUpdate={saveStudent}
-                onExport={() => setExporting([profile])}
-                onPrint={() => print([profile])}
+                onExport={() =>
+                  setExporting([
+                    scope.students.find((s) => s.id === profile.id) || profile,
+                  ])
+                }
+                onPrint={() =>
+                  print([
+                    scope.students.find((s) => s.id === profile.id) || profile,
+                  ])
+                }
               />
             ) : (
               <>
                 {page === "dashboard" && (
-                  <>
-                    <div className="page-heading">
-                      <div>
-                        <span className="eyebrow">
-                          متابعة أكاديمية، من القبول إلى التخرج
-                        </span>
-                        <h1>لوحة المتابعة</h1>
-                        <p>صورة واضحة لطلابك، وما يحتاج إلى اهتمامك اليوم.</p>
-                      </div>
-                      <div className="button-row">
-                        <button
-                          className="button"
-                          onClick={() => setImporting(true)}
-                        >
-                          <Upload size={17} />
-                          استيراد بيانات
-                        </button>
-                        <button
-                          className="button primary"
-                          onClick={() => setEditor("new")}
-                        >
-                          <Plus size={18} />
-                          إضافة طالب
-                        </button>
-                      </div>
-                    </div>
-                    {(!workspace.students.length || demo) && (
-                      <section className="hero-panel">
-                        <div className="hero-copy">
-                          <span className="hero-tag">
-                            <span />{" "}
-                            {demo
-                              ? "استكشاف مساحة العمل"
-                              : "مساحة عمل الدراسات العليا"}
-                          </span>
-                          <h2>
-                            كل طالب،
-                            <br />
-                            <em>صورة مكتملة.</em>
-                          </h2>
-                          <p>
-                            بياناته الأكاديمية، ورسالته، وقراراته ومواعيده؛
-                            <br />
-                            مترابطة في ملف واحد يسهل الرجوع إليه.
-                          </p>
-                          <button onClick={() => navigate("students")}>
-                            استعرض سجل الطلاب <ArrowLeft size={18} />
-                          </button>
-                        </div>
-                        <div className="hero-art" aria-hidden="true">
-                          <div className="orbit orbit-one" />
-                          <div className="orbit orbit-two" />
-                          <div className="orbit orbit-three" />
-                          <span className="orbit-dot dot-one" />
-                          <span className="orbit-dot dot-two" />
-                          <div className="art-card">
-                            <span className="art-icon">
-                              <GraduationCap size={40} />
-                            </span>
-                            <span className="art-line long" />
-                            <span className="art-line" />
-                            <div className="art-chips">
-                              <i />
-                              <i />
-                              <i />
-                            </div>
-                            <div className="art-row">
-                              <Check size={13} />
-                              <span />
-                            </div>
-                            <div className="art-row">
-                              <Check size={13} />
-                              <span />
-                            </div>
-                          </div>
-                          <span className="floating-label float-one">
-                            <BookOpen size={15} />
-                            مسار أكاديمي
-                          </span>
-                          <span className="floating-label float-two">
-                            <CheckSquare size={15} />
-                            متابعة متصلة
-                          </span>
-                        </div>
-                      </section>
-                    )}
-                    <div className="stats-grid">
-                      {[
-                        {
-                          label: "القيود المرصودة في النطاق",
-                          value: scope.students.length,
-                          icon: Users,
-                          sub: `${metric(scope.students.filter((s) => s.degree === "ماجستير").length)} ماجستير · ${metric(scope.students.filter((s) => s.degree === "دكتوراه").length)} دكتوراه`,
-                          tone: "green",
-                          click: () => navigate("students"),
-                        },
-                        {
-                          label: "الطلاب المنتظمون",
-                          value: scope.students.filter(
-                            (s) => s.status === "منتظم",
-                          ).length,
-                          icon: BookOpen,
-                          sub: `${metric(scope.students.filter((s) => s.status === "منتظم" && s.degree === "ماجستير").length)} ماجستير · ${metric(scope.students.filter((s) => s.status === "منتظم" && s.degree === "دكتوراه").length)} دكتوراه`,
-                          tone: "blue",
-                          click: () => {
-                            clearFilters();
-                            setStatus("منتظم");
-                            navigate("students");
-                          },
-                        },
-                        {
-                          label: "المهام المفتوحة",
-                          value: openTasks.length,
-                          icon: Clock3,
-                          sub: `${number(lateTasks.length)} مهام تجاوزت موعدها`,
-                          tone: "amber",
-                          click: () => navigate("tasks"),
-                        },
-                        {
-                          label: "ملفات تحتاج استكمالًا",
-                          value: incomplete.length,
-                          icon: FolderOpen,
-                          sub: "تاريخ المصدر والقبول والبيانات الأساسية",
-                          tone: "violet",
-                          click: () => navigate("reports"),
-                        },
-                      ].map(
-                        ({ label, value, icon: Icon, sub, tone, click }) => (
-                          <button
-                            className="stat-card"
-                            key={label}
-                            onClick={click}
-                          >
-                            <span className={`stat-icon ${tone}`}>
-                              <Icon size={21} />
-                            </span>
-                            <span className="stat-label">{label}</span>
-                            <strong>{metric(value)}</strong>
-                            <small>{sub}</small>
-                            <ArrowUpLeft className="stat-arrow" size={16} />
-                          </button>
-                        ),
-                      )}
-                    </div>
-                    {!workspace.students.length && (
-                      <div className="onboarding">
-                        <div>
-                          <strong>لنبدأ بملف الطالب الأول</strong>
-                          <p>
-                            أضف طالبًا أو استورد كشفًا، أو استكشف الإمكانات
-                            ببيانات افتراضية.
-                          </p>
-                        </div>
-                        <button className="button" onClick={startDemo}>
-                          <FlaskConical size={17} />
-                          تجربة ببيانات افتراضية
-                        </button>
-                      </div>
-                    )}
-                    <div className="dashboard-grid">
-                      <section className="panel">
-                        <div className="panel-heading">
-                          <div>
-                            <h3>متابعة المواعيد</h3>
-                            <p>المهام المفتوحة حسب أقرب تاريخ</p>
-                          </div>
-                          <button
-                            className="text-button"
-                            onClick={() => navigate("tasks")}
-                          >
-                            جميع المهام <ChevronLeft size={15} />
-                          </button>
-                        </div>
-                        {openTasks.length ? (
-                          <div className="dashboard-tasks">
-                            {openTasks.slice(0, 4).map((t) => (
-                              <button
-                                className="dashboard-task"
-                                key={`${t.student.id}-${t.id}`}
-                                onClick={() => openProfile(t.student.id)}
-                              >
-                                <span
-                                  className={`task-marker ${overdue(t) ? "overdue" : ""}`}
-                                />
-                                <div className="grow">
-                                  <strong>{t.title}</strong>
-                                  <small>
-                                    {t.student.fullName} · {t.student.program}
-                                  </small>
-                                </div>
-                                <div>
-                                  <Badge tone={overdue(t) ? "red" : "neutral"}>
-                                    {overdue(t) ? "متأخرة" : "مفتوحة"}
-                                  </Badge>
-                                  <small>{formatDate(t.dueDate)}</small>
-                                </div>
-                                <ChevronLeft size={16} />
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <Empty
-                            title="لا توجد مواعيد معلقة"
-                            description="تظهر هنا المهام المفتوحة بعد إضافتها إلى ملفات الطلاب."
-                          />
-                        )}
-                      </section>
-                      <section className="panel">
-                        <div className="panel-heading">
-                          <div>
-                            <h3>مراحل الطلاب</h3>
-                            <p>توزيع السجلات على المسار الدراسي</p>
-                          </div>
-                          <GraduationCap size={21} />
-                        </div>
-                        <div className="stage-bars">
-                          {stages.slice(0, 6).map((label, i) => {
-                            const count = scope.students.filter(
-                              (s) => s.stage === label,
-                            ).length;
-                            return (
-                              <button
-                                key={label}
-                                onClick={() => {
-                                  clearFilters();
-                                  setStage(label);
-                                  navigate("students");
-                                }}
-                              >
-                                <div>
-                                  <span>
-                                    <i className={`stage-dot stage-${i}`} />
-                                    {label}
-                                  </span>
-                                  <strong>{metric(count)}</strong>
-                                </div>
-                                <span className="bar-track">
-                                  <span
-                                    style={{
-                                      width: `${scope.students.length ? (count / scope.students.length) * 100 : 0}%`,
-                                    }}
-                                  />
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <small className="muted">
-                          المتخرجون:{" "}
-                          {number(
-                            scope.students.filter((s) => s.stage === "متخرج")
-                              .length,
-                          )}{" "}
-                          · مرحلة غير موثقة:{" "}
-                          {number(
-                            scope.students.filter((s) => s.stage === "غير موثق")
-                              .length,
-                          )}
-                          · بحسب آخر رصد في المصادر
-                        </small>
-                      </section>
-                    </div>
-                    <section className="panel recent-panel">
-                      <div className="panel-heading">
-                        <div>
-                          <h3>آخر ملفات الطلاب تحديثًا</h3>
-                          <p>الوصول السريع إلى التفاصيل والسجلات المرتبطة</p>
-                        </div>
-                        <button
-                          className="text-button"
-                          onClick={() => navigate("students")}
-                        >
-                          عرض السجل <ChevronLeft size={15} />
-                        </button>
-                      </div>
-                      {scope.students.length ? (
-                        <div className="table-wrap">
-                          <table>
-                            <thead>
-                              <tr>
-                                <th>الطالب</th>
-                                <th>البرنامج</th>
-                                <th>المرحلة</th>
-                                <th>المشرف</th>
-                                <th>الحالة</th>
-                                <th />
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {[...scope.students]
-                                .sort((a, b) =>
-                                  b.updatedAt.localeCompare(a.updatedAt),
-                                )
-                                .slice(0, 5)
-                                .map((s) => (
-                                  <tr key={s.id}>
-                                    <td>
-                                      <StudentName student={s} />
-                                    </td>
-                                    <td>
-                                      <strong>{s.program}</strong>
-                                      <small>{s.degree}</small>
-                                    </td>
-                                    <td>{s.stage}</td>
-                                    <td>{s.supervisor || "لم يسجل"}</td>
-                                    <td>
-                                      <Badge
-                                        tone={
-                                          s.status === "منتظم"
-                                            ? "green"
-                                            : "amber"
-                                        }
-                                      >
-                                        {s.status}
-                                      </Badge>
-                                    </td>
-                                    <td>
-                                      <button
-                                        className="icon-button"
-                                        aria-label={`فتح ملف ${s.fullName}`}
-                                        onClick={() => openProfile(s.id)}
-                                      >
-                                        <ArrowUpLeft size={19} />
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <Empty
-                          title="ملفات طلابك تبدأ من هنا"
-                          description="بعد إدخال البيانات ستظهر أحدث الملفات تلقائيًا."
-                        />
-                      )}
-                    </section>
-                  </>
+                  <ProgramSummary
+                    students={population}
+                    available={scope.available}
+                    onProgram={(name, level) => {
+                      setProgram(name);
+                      setDegree(level);
+                      navigate("students");
+                    }}
+                  />
                 )}
                 {page === "students" && (
-                  <>
-                    <div className="page-heading">
-                      <div>
-                        <span className="eyebrow">
-                          دليل موحد لجميع برامج الدراسات العليا
-                        </span>
-                        <h1>
-                          سجل الطلاب{" "}
-                          <span className="heading-count">
-                            {number(scope.students.length)}
-                          </span>
-                        </h1>
-                        <p>ابحث، صفِّ النتائج، وافتح ملف الطالب بكل تفاصيله.</p>
-                      </div>
-                      <div className="button-row">
-                        <button
-                          className="button"
-                          onClick={() => setImporting(true)}
-                        >
-                          <Upload size={16} />
-                          استيراد
-                        </button>
-                        <button
-                          className="button primary"
-                          onClick={() => setEditor("new")}
-                        >
-                          <Plus size={17} />
-                          إضافة طالب
-                        </button>
-                      </div>
-                    </div>
-                    <section className="panel directory-panel">
-                      <div className="directory-tools">
-                        <SearchBox value={query} onChange={setQuery} />
-                        <button
-                          className="button"
-                          disabled={
-                            !filtered.length && !selectedStudents.length
-                          }
-                          onClick={() =>
-                            setExporting(
-                              selectedStudents.length
-                                ? selectedStudents
-                                : filtered,
-                            )
-                          }
-                        >
-                          <Download size={16} />
-                          {selectedStudents.length
-                            ? `تصدير المحدد (${number(selectedStudents.length)})`
-                            : "تصدير النتائج"}
-                        </button>
-                      </div>
-                      <div className="filter-bar">
-                        <span>
-                          <ListFilter size={16} />
-                          تصفية
-                        </span>
-                        <select
-                          aria-label="تصفية الدرجة"
-                          value={degree}
-                          onChange={(e) => setDegree(e.target.value)}
-                        >
-                          <option value="">كل الدرجات</option>
-                          <option>ماجستير</option>
-                          <option>دكتوراه</option>
-                        </select>
-                        <select
-                          aria-label="تصفية البرنامج"
-                          value={program}
-                          onChange={(e) => setProgram(e.target.value)}
-                        >
-                          <option value="">كل البرامج</option>
-                          {[
-                            ...new Set([
-                              ...programs.map((p) => p.name),
-                              ...scope.students.map((s) => s.program),
-                            ]),
-                          ].map((p) => (
-                            <option key={p}>{p}</option>
-                          ))}
-                        </select>
-                        <select
-                          aria-label="تصفية حالة القيد"
-                          value={status}
-                          onChange={(e) => setStatus(e.target.value)}
-                        >
-                          <option value="">كل الحالات</option>
-                          {statuses.map((x) => (
-                            <option key={x}>{x}</option>
-                          ))}
-                        </select>
-                        <select
-                          aria-label="تصفية المرحلة"
-                          value={stage}
-                          onChange={(e) => setStage(e.target.value)}
-                        >
-                          <option value="">كل المراحل</option>
-                          {stages.map((x) => (
-                            <option key={x}>{x}</option>
-                          ))}
-                        </select>
-                        {(degree || program || status || stage || query) && (
-                          <button
-                            className="text-button"
-                            onClick={clearFilters}
-                          >
-                            مسح الفلاتر
-                          </button>
-                        )}
-                        <select
-                          className="sort-select"
-                          aria-label="ترتيب الطلاب"
-                          value={sort}
-                          onChange={(e) => setSort(e.target.value)}
-                        >
-                          <option value="updated">الأحدث تعديلًا</option>
-                          <option value="name">الاسم أبجديًا</option>
-                          <option value="number">الرقم الجامعي</option>
-                        </select>
-                      </div>
-                      {!!selected.size && (
-                        <div className="selection-bar">
-                          تم تحديد {number(selected.size)} سجلًا (قد تشمل نتائج
-                          خارج الفلاتر)
-                          <button
-                            className="text-button"
-                            onClick={() => setSelected(new Set())}
-                          >
-                            إلغاء التحديد
-                          </button>
-                        </div>
-                      )}
-                      {filtered.length ? (
-                        <>
-                          <div className="table-wrap">
-                            <table className="student-table">
-                              <thead>
-                                <tr>
-                                  <th>
-                                    <input
-                                      type="checkbox"
-                                      aria-label="تحديد كل نتائج البحث"
-                                      checked={
-                                        !!filtered.length &&
-                                        filtered.every((s) =>
-                                          selected.has(s.id),
-                                        )
-                                      }
-                                      onChange={(e) =>
-                                        setSelected((v) => {
-                                          const next = new Set(v);
-                                          filtered.forEach((s) =>
-                                            e.target.checked
-                                              ? next.add(s.id)
-                                              : next.delete(s.id),
-                                          );
-                                          return next;
-                                        })
-                                      }
-                                    />
-                                  </th>
-                                  <th>الطالب</th>
-                                  <th>البرنامج / الدرجة</th>
-                                  <th>الدفعة</th>
-                                  <th>المرحلة المسجلة</th>
-                                  <th>المشرف</th>
-                                  <th>آخر حالة مرصودة</th>
-                                  <th>إجراءات</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {filtered
-                                  .slice((rowPage - 1) * 10, rowPage * 10)
-                                  .map((s) => (
-                                    <tr
-                                      key={s.id}
-                                      className={
-                                        selected.has(s.id) ? "selected" : ""
-                                      }
-                                    >
-                                      <td>
-                                        <input
-                                          type="checkbox"
-                                          aria-label={`تحديد ${s.fullName}`}
-                                          checked={selected.has(s.id)}
-                                          onChange={(e) =>
-                                            setSelected((v) => {
-                                              const n = new Set(v);
-                                              e.target.checked
-                                                ? n.add(s.id)
-                                                : n.delete(s.id);
-                                              return n;
-                                            })
-                                          }
-                                        />
-                                      </td>
-                                      <td>
-                                        <StudentName student={s} />
-                                      </td>
-                                      <td>
-                                        <strong>{s.program}</strong>
-                                        <small>{s.degree}</small>
-                                      </td>
-                                      <td>{s.cohort || "—"}</td>
-                                      <td>{s.stage}</td>
-                                      <td>{s.supervisor || "لم يسجل"}</td>
-                                      <td>
-                                        <Badge
-                                          tone={
-                                            s.status === "منتظم"
-                                              ? "green"
-                                              : s.status === "متخرج"
-                                                ? "blue"
-                                                : "amber"
-                                          }
-                                        >
-                                          {s.status}
-                                        </Badge>
-                                        {s.asOfAcademicYear && (
-                                          <small>
-                                            رصد {s.asOfAcademicYear}هـ
-                                          </small>
-                                        )}
-                                      </td>
-                                      <td>
-                                        <div className="record-controls">
-                                          <button
-                                            className="icon-button"
-                                            aria-label={`فتح ملف ${s.fullName}`}
-                                            onClick={() => openProfile(s.id)}
-                                          >
-                                            <ArrowUpLeft size={18} />
-                                          </button>
-                                          <button
-                                            className="icon-button danger"
-                                            aria-label={`حذف ملف ${s.fullName}`}
-                                            onClick={() => deleteStudent(s)}
-                                          >
-                                            <Trash2 size={15} />
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                              </tbody>
-                            </table>
-                          </div>
-                          <div className="table-footer">
-                            <span>
-                              عرض {number((rowPage - 1) * 10 + 1)}–
-                              {number(Math.min(rowPage * 10, filtered.length))}{" "}
-                              من {number(filtered.length)} سجلًا
-                            </span>
-                            <div className="button-row">
-                              <button
-                                className="icon-button"
-                                aria-label="الصفحة السابقة"
-                                disabled={rowPage <= 1}
-                                onClick={() => setRowPage((p) => p - 1)}
-                              >
-                                <ChevronRight size={18} />
-                              </button>
-                              <span>
-                                {number(rowPage)} /{" "}
-                                {number(Math.ceil(filtered.length / 10))}
-                              </span>
-                              <button
-                                className="icon-button"
-                                aria-label="الصفحة التالية"
-                                disabled={rowPage * 10 >= filtered.length}
-                                onClick={() => setRowPage((p) => p + 1)}
-                              >
-                                <ChevronLeft size={18} />
-                              </button>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <Empty
-                          title={
-                            scope.students.length
-                              ? "لا توجد نتائج مطابقة"
-                              : "سجل الطلاب جاهز للبدء"
-                          }
-                          description={
-                            scope.students.length
-                              ? "جرّب تغيير كلمات البحث أو مسح الفلاتر."
-                              : "أضف طالبًا أو استورد كشف Excel أو CSV للبدء."
-                          }
-                          action={
-                            <button
-                              className="button"
-                              onClick={
-                                scope.students.length
-                                  ? clearFilters
-                                  : () => setEditor("new")
-                              }
-                            >
-                              {scope.students.length
-                                ? "مسح البحث والفلاتر"
-                                : "إضافة طالب"}
-                            </button>
-                          }
-                        />
-                      )}
-                    </section>
-                  </>
+                  <StudentDirectory
+                    memory={directoryMemory}
+                    students={population}
+                    available={scope.available}
+                    hasWorkspaceData={!!workspace.students.length}
+                    onOpen={openProfile}
+                    onExport={setExporting}
+                    onPrint={print}
+                    onImport={() => setImporting(true)}
+                    onAdd={() => setEditor("new")}
+                    onDelete={deleteStudent}
+                  />
                 )}
                 {page === "tasks" && (
                   <>
@@ -1353,8 +726,8 @@ export default function App() {
                         </p>
                         <button
                           className="button primary"
-                          disabled={!scope.students.length}
-                          onClick={() => setExporting(scope.students)}
+                          disabled={!population.length}
+                          onClick={() => setExporting(population)}
                         >
                           تجهيز تقرير النطاق المعروض <ArrowLeft size={16} />
                         </button>
@@ -1397,7 +770,7 @@ export default function App() {
                         </p>
                         <button
                           className="button"
-                          disabled={!scope.students.length}
+                          disabled={!population.length}
                           onClick={() => exportBackup(workspace)}
                         >
                           حفظ نسخة احتياطية <Download size={16} />
@@ -1672,7 +1045,7 @@ export default function App() {
       )}
       {exporting && (
         <ExportDialog
-          context={scope.label}
+          context={scopeLabel}
           students={exporting}
           workspace={workspace}
           onClose={() => setExporting(null)}
@@ -1699,7 +1072,7 @@ export default function App() {
             <PrintableStudents
               students={printStudents}
               demo={demo}
-              context={scope.label}
+              context={scopeLabel}
             />
           </div>
           <footer className="modal-footer">
@@ -1719,7 +1092,7 @@ export default function App() {
       <PrintableStudents
         students={printStudents}
         demo={demo}
-        context={scope.label}
+        context={scopeLabel}
       />
     </>
   );

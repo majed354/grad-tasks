@@ -339,7 +339,7 @@ export function newStudent(): Student {
     cohort: "",
     admissionDate: "",
     status: "منتظم",
-    stage: "المقررات",
+    stage: "غير موثق",
     email: "",
     phone: "",
     nationality: "",
