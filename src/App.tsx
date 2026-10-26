@@ -63,6 +63,7 @@ const navigation = [
   { id: "settings", label: "إعدادات المساحة", icon: Settings },
 ] as const;
 export default function App() {
+  const [backupPreview, setBackupPreview] = useState("");
   const directoryMemory = useRef<DirectoryMemory>({});
   const [workspace, setWorkspace] = useState<Workspace>(emptyWorkspace);
   const current = useRef(workspace);
@@ -782,22 +783,11 @@ export default function App() {
                         <button
                           className="button"
                           disabled={!workspace.students.length}
-                          onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(
-                                backupText(current.current),
-                              );
-                              setToast(
-                                "نُسخت نسخة JSON الكاملة إلى الحافظة؛ احفظها في ملف خاص.",
-                              );
-                            } catch {
-                              setToast(
-                                "تعذر النسخ إلى الحافظة. استخدم تنزيل النسخة الاحتياطية.",
-                              );
-                            }
-                          }}
+                          onClick={() =>
+                            setBackupPreview(backupText(current.current))
+                          }
                         >
-                          نسخ نسخة JSON
+                          عرض ونسخ JSON
                         </button>
                       </section>
                     </div>
@@ -1075,6 +1065,42 @@ export default function App() {
           onClose={() => setExporting(null)}
           onPrint={print}
         />
+      )}
+      {backupPreview && (
+        <Modal
+          title="نسخة JSON كاملة"
+          subtitle="نسخة من مساحة هذا المتصفح؛ احفظها في ملف خاص"
+          onClose={() => setBackupPreview("")}
+        >
+          <textarea
+            aria-label="نص النسخة الاحتياطية JSON"
+            readOnly
+            value={backupPreview}
+            rows={12}
+            dir="ltr"
+            spellCheck={false}
+          />
+          <div className="button-row">
+            <button
+              className="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(backupPreview);
+                  setToast("نُسخت نسخة JSON إلى الحافظة.");
+                } catch {
+                  setToast(
+                    "تعذر النسخ. حدد النص وانسخه، أو نزّل النسخة الاحتياطية.",
+                  );
+                }
+              }}
+            >
+              نسخ النص
+            </button>
+            <button className="button" onClick={() => setBackupPreview("")}>
+              إغلاق النسخة
+            </button>
+          </div>
+        </Modal>
       )}
       {toast && (
         <div className="toast" role="status">
