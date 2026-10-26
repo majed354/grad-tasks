@@ -8,7 +8,7 @@ import {
   resultExportRows,
 } from "../src/results";
 import { expectedLevel, filterDirectory, progressGroup } from "../src/progress";
-import { createWorkbook, planImport, readImport } from "../src/io";
+import { backupText, createWorkbook, planImport, readImport } from "../src/io";
 const sample = () =>
   studentSchema.parse({
     ...newStudent(),
@@ -136,7 +136,7 @@ describe("نتائج المقررات واستقلال حالة القيد", () 
   it("يعيد JSON مع الشواهد ويحفظ نتائج المقررات عند تحديث CSV", async () => {
     const s = sample(),
       w = { ...emptyWorkspace(), students: [s] };
-    const file = await readImport(new File([JSON.stringify(w)], "backup.json"));
+    const file = await readImport(new File([backupText(w)], "backup.json"));
     expect(file.backup?.students[0].courseResults).toEqual(s.courseResults);
     const plan = planImport(
       {

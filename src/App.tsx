@@ -37,7 +37,7 @@ import {
 } from "./model";
 import type { Student, Workspace } from "./model";
 import { programs, sources } from "./catalog";
-import { exportBackup, columns, download } from "./io";
+import { backupText, exportBackup, columns, download } from "./io";
 import { demoWorkspace } from "./demo";
 import StudentEditor from "./StudentEditor";
 import StudentDirectory, { ProgramSummary } from "./StudentDirectory";
@@ -778,6 +778,26 @@ export default function App() {
                           onClick={() => exportBackup(workspace)}
                         >
                           حفظ نسخة احتياطية <Download size={16} />
+                        </button>
+                        <button
+                          className="button"
+                          disabled={!workspace.students.length}
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(
+                                backupText(current.current),
+                              );
+                              setToast(
+                                "نُسخت نسخة JSON الكاملة إلى الحافظة؛ احفظها في ملف خاص.",
+                              );
+                            } catch {
+                              setToast(
+                                "تعذر النسخ إلى الحافظة. استخدم تنزيل النسخة الاحتياطية.",
+                              );
+                            }
+                          }}
+                        >
+                          نسخ نسخة JSON
                         </button>
                       </section>
                     </div>

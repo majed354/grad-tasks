@@ -115,30 +115,31 @@ export function exportCSV(students: Student[], selected: ExportColumn[]) {
     "طلاب-الدراسات-العليا.csv",
   );
 }
-export function exportBackup(
+export function backupText(
   workspace: Workspace,
   students = workspace.students,
 ) {
   const ids = new Set(students.map((s) => s.id));
+  return JSON.stringify(
+    {
+      format: "grad-tasks-backup",
+      exportedAt: new Date().toISOString(),
+      ...workspace,
+      students,
+      activity: workspace.activity.filter(
+        (a) => !a.studentId || ids.has(a.studentId),
+      ),
+    },
+    null,
+    2,
+  );
+}
+export function exportBackup(
+  workspace: Workspace,
+  students = workspace.students,
+) {
   download(
-    new Blob(
-      [
-        JSON.stringify(
-          {
-            format: "grad-tasks-backup",
-            exportedAt: new Date().toISOString(),
-            ...workspace,
-            students,
-            activity: workspace.activity.filter(
-              (a) => !a.studentId || ids.has(a.studentId),
-            ),
-          },
-          null,
-          2,
-        ),
-      ],
-      { type: "application/json" },
-    ),
+    new Blob([backupText(workspace, students)], { type: "application/json" }),
     "نسخة-بيانات-الدراسات-العليا.grad.json",
   );
 }
