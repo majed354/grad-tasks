@@ -3600,3 +3600,57 @@ td > small,
   color: #8d4c00;
   font-weight: 600;
 }
+.auth-shell {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: #f2f6f3;
+}
+.auth-card {
+  width: min(100%, 450px);
+  background: white;
+  padding: 2rem;
+  border: 1px solid #dae5de;
+  border-radius: 20px;
+  box-shadow: 0 12px 40px #183b2520;
+}
+.auth-card > .brand-mark {
+  margin-bottom: 1.5rem;
+}
+.auth-card h1 {
+  font-size: 2.5rem;
+  margin: 0.6rem 0;
+}
+.auth-card form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+.auth-card small {
+  color: #67756e;
+  line-height: 1.9;
+}
+.auth-card input {
+  width: 100%;
+  direction: ltr;
+}
+.auth-card .field > span {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+@media (max-width: 700px) {
+  .topbar-meta {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .topbar {
+    height: auto;
+    min-height: 75px;
+    padding-block: 0.7rem;
+  }
+  .auth-card {
+    padding: 1.5rem;
+  }
+}

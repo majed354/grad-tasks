@@ -26,7 +26,12 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Badge, Empty, Modal, SearchBox, formatDate, number } from "./ui";
-import { loadWorkspace, saveWorkspace } from "./storage";
+import { loadWorkspace, saveWorkspace } from "./remote";
+import {
+  loadWorkspace as loadLocalWorkspace,
+  archiveLocalWorkspace,
+} from "./storage";
+import { logout } from "./Auth";
 import {
   emptyWorkspace,
   normalize,
@@ -65,6 +70,8 @@ const navigation = [
 export default function App() {
   const [backupPreview, setBackupPreview] = useState("");
   const [backupPart, setBackupPart] = useState(0);
+  const [migration, setMigration] = useState<Workspace | null>(null);
+  const [migrating, setMigrating] = useState(false);
   const backupChunkSize = 1024 * 1024;
   const directoryMemory = useRef<DirectoryMemory>({});
   const [workspace, setWorkspace] = useState<Workspace>(emptyWorkspace);
@@ -98,9 +105,11 @@ export default function App() {
         accept(w);
         setReady(true);
       })
-      .catch(() =>
+      .catch((e) =>
         setLoadError(
-          "تعذر فتح مخزن المتصفح. استخدم متصفحًا يسمح بالتخزين المحلي، ثم أعد التحميل. لم يتم استبدال أي بيانات.",
+          e instanceof Error
+            ? e.message
+            : "تعذر فتح مخزن مدار. أعد المحاولة؛ لم يتم استبدال أي بيانات.",
         ),
       );
   }, []);
@@ -160,7 +169,7 @@ export default function App() {
           : await saveWorkspace(next, base.revision),
       );
       setToast(
-        demo ? "تم التعديل في التجربة فقط" : action + " — تم الحفظ في المتصفح",
+        demo ? "تم التعديل في التجربة فقط" : action + " — تم الحفظ في الموقع",
       );
     } finally {
       lock.current = false;
@@ -201,9 +210,9 @@ export default function App() {
       accept(await loadWorkspace());
       setDemo(false);
       setProfileId(null);
-      setToast("عدت إلى بيانات هذا المتصفح");
+      setToast("عدت إلى بيانات الموقع المشتركة");
     } catch {
-      setToast("تعذر فتح البيانات المحلية. أعد المحاولة.");
+      setToast("تعذر فتح بيانات الموقع. أعد المحاولة.");
     }
   };
   const profile = workspace.students.find((s) => s.id === profileId);
@@ -232,7 +241,7 @@ export default function App() {
   const deleteStudent = async (s: Student) => {
     if (
       !confirm(
-        `حذف ملف ${s.fullName} وجميع سجلاته المرتبطة من هذا المتصفح؟ يفضل تصدير نسخة JSON أولًا.`,
+        `حذف ملف ${s.fullName} وجميع سجلاته المرتبطة من الموقع لجميع المستخدمين؟ يفضل تصدير نسخة JSON أولًا.`,
       )
     )
       return;
@@ -325,8 +334,8 @@ export default function App() {
           <div className="sidebar-bottom">
             <div className="sidebar-help">
               <ShieldCheck size={21} />
-              <strong>بياناتك في مساحة جهازك</strong>
-              <p>احفظ نسخة احتياطية عند كل تحديث مهم.</p>
+              <strong>بيانات مشتركة بعد الدخول</strong>
+              <p>تظهر التغييرات من أجهزتك الأخرى عند تحديث المساحة.</p>
               <button onClick={() => navigate("settings")}>
                 إدارة المساحة <ArrowUpLeft size={15} />
               </button>
@@ -334,8 +343,8 @@ export default function App() {
             <div className="workspace-label">
               <span className="avatar">م</span>
               <div>
-                <strong>مساحة عمل محلية</strong>
-                <small>{demo ? "وضع التجربة" : "الحفظ في هذا المتصفح"}</small>
+                <strong>مساحة مدار المشتركة</strong>
+                <small>{demo ? "وضع التجربة" : "الدخول بالرمز المشترك"}</small>
               </div>
               <Settings size={17} />
             </div>
@@ -370,8 +379,32 @@ export default function App() {
                 ) : (
                   <span className="live-dot" />
                 )}
-                {demo ? "بيانات افتراضية" : "حفظ محلي"}
+                {demo ? "بيانات افتراضية" : "حفظ مركزي"}
               </span>
+              <button
+                className="button"
+                disabled={demo}
+                onClick={async () => {
+                  if (lock.current) return;
+                  setReady(false);
+                  try {
+                    accept(await loadWorkspace());
+                    setToast("تم تحديث بيانات الموقع");
+                  } catch (e) {
+                    setToast(e instanceof Error ? e.message : "تعذر التحديث");
+                  } finally {
+                    setReady(true);
+                  }
+                }}
+              >
+                تحديث المساحة
+              </button>
+              <button
+                className="text-button"
+                onClick={() => logout().catch((e) => setToast(e.message))}
+              >
+                تسجيل الخروج
+              </button>
               <button
                 className="icon-button"
                 aria-label="معلومات مساحة العمل"
@@ -495,7 +528,7 @@ export default function App() {
                         ? "آخر رصد لكل قيد؛ تختلف سنواته"
                         : workspace.students.length
                           ? "لا يوجد كشف لهذا النطاق"
-                          : "لم تُحمّل البيانات في هذا المتصفح"}
+                          : "لم تُضف البيانات إلى الموقع بعد"}
                   </span>
                 </div>
                 {academicYear === "1448" && scope.available && (
@@ -507,7 +540,7 @@ export default function App() {
                   <p className="alert">
                     {workspace.students.length
                       ? "لا توجد بيانات كشف لهذا النطاق؛ اختر سنة أو فصلًا آخر."
-                      : "هذه مساحة متصفح خالية. البيانات المحفوظة في متصفح آخر لا تظهر تلقائيًا هنا."}
+                      : "مخزن الموقع خالٍ. انقل بيانات المتصفح السابق من إعدادات المساحة أو استورد النسخة الاحتياطية."}
                     <button
                       className="text-button"
                       onClick={() => setImporting(true)}
@@ -894,19 +927,44 @@ export default function App() {
                         <h2>
                           {demo
                             ? "وضع التجربة الافتراضية"
-                            : "مساحة محلية في هذا المتصفح"}
+                            : "مخزن مركزي للموقع"}
                         </h2>
                         <p>
-                          الكود منشور على GitHub، والواجهة تعمل على Netlify.
-                          بيانات الطلاب التي تدخلها تحفظ في IndexedDB على هذا
-                          الجهاز، ولا يرسلها الموقع إلى خادم.
+                          بيانات الطلاب محفوظة في قاعدة بيانات خاصة خلف خادم
+                          مدار، وتتاح من أي جهاز بعد تسجيل الدخول. يملك حاملو
+                          الرمز المشترك صلاحيات القراءة والتعديل لجميع البرامج.
                         </p>
                         <div className="info-box">
-                          حذف بيانات المتصفح أو الانتقال إلى جهاز أو عنوان موقع
-                          مختلف لا ينقل السجلات معك. صدّر نسخة JSON واحفظها في
-                          مكان مناسب ثم أعد استيرادها. الوصول إلى جهازك ومتصفحك
-                          يتيح الوصول إلى هذه البيانات.
+                          تُحفظ التغييرات في الموقع عند نجاح رسالة الحفظ. حدّث
+                          المساحة لقراءة تعديلات جهاز آخر. إذا تغيرت البيانات
+                          أثناء تعديلك، يمنع الخادم استبدالها بنسخة أقدم ويطلب
+                          تحديث المساحة.
                         </div>
+                        {!demo && !workspace.students.length && (
+                          <button
+                            className="button"
+                            onClick={async () => {
+                              try {
+                                const local = await loadLocalWorkspace();
+                                if (!local.students.length) {
+                                  setToast(
+                                    "لا توجد بيانات قديمة في هذا المتصفح؛ استخدم استيراد النسخة الاحتياطية.",
+                                  );
+                                  return;
+                                }
+                                setMigration(local);
+                              } catch (e) {
+                                setToast(
+                                  e instanceof Error
+                                    ? e.message
+                                    : "تعذر فتح النسخة المحلية",
+                                );
+                              }
+                            }}
+                          >
+                            نقل بيانات هذا المتصفح إلى الموقع
+                          </button>
+                        )}
                         <div className="button-row">
                           <button
                             className="button primary"
@@ -956,7 +1014,7 @@ export default function App() {
                         <h3>استكشاف الواجهة</h3>
                         <p>
                           التجربة مستقلة عن بياناتك المحفوظة. أي تعديلات فيها
-                          مؤقتة، والعودة للبيانات المحلية لا تدمجها.
+                          مؤقتة، والعودة لبيانات الموقع لا تدمجها.
                         </p>
                         <button
                           className="button"
@@ -976,8 +1034,8 @@ export default function App() {
                         <div>
                           <h3>آخر العمليات في هذه المساحة</h3>
                           <p>
-                            سجل محلي لآخر 200 عملية؛ لا يمثل سجل تدقيق مؤسسيًا
-                            موثق الهوية.
+                            آخر 200 عملية محفوظة في الخادم. الدخول مشترك؛ لا
+                            ينسب السجل العملية إلى اسم شخص محدد.
                           </p>
                         </div>
                         <Clock3 size={20} />
@@ -997,12 +1055,13 @@ export default function App() {
                       )}
                     </section>
                     <section className="panel next-stage">
-                      <h3>المرحلة التالية: عمل مشترك بصلاحيات</h3>
+                      <h3>الدخول المشترك والصلاحيات</h3>
                       <p>
-                        قبل مشاركة السجلات الفعلية بين الموظفين: تسجيل دخول،
-                        وصلاحيات بحسب البرنامج، وقاعدة بيانات خاصة خلف وظائف
-                        Netlify، ونسخ احتياطي وسجل عمليات موثق. هذا الإصدار لا
-                        يوفر مزامنة بين المستخدمين أو تسجيل دخول.
+                        يتيح الرمز المشترك الوصول إلى جميع البرامج بالصلاحيات
+                        نفسها، دون حسابات شخصية أو فصل الصلاحيات بحسب البرنامج.
+                        جلسة الدخول ثماني ساعات، ويمكن إنهاؤها بتسجيل الخروج.
+                        النسخ الاحتياطية تحتفظ بالسجلات المرتبطة والمصادر ونتائج
+                        المقررات.
                       </p>
                       <a
                         className="text-link"
@@ -1028,6 +1087,45 @@ export default function App() {
           </main>
         </div>
       </div>
+      {migration && (
+        <Modal
+          title="نقل بيانات المتصفح إلى الموقع"
+          subtitle="نقل أولي إلى مخزن الموقع الخالي"
+          onClose={() => {
+            if (!migrating) setMigration(null);
+          }}
+        >
+          <p>
+            ستُنقل {number(migration.students.length)} ملفات طالب وجميع نتائجها
+            ومصادرها إلى الموقع، وتصبح متاحة من أي جهاز يحمل رمز الدخول. تُحفظ
+            نسخة محلية مستقلة قبل النقل، وتبقى البيانات القديمة كما هي.
+          </p>
+          <button
+            className="button primary"
+            disabled={migrating}
+            onClick={async () => {
+              setMigrating(true);
+              try {
+                await archiveLocalWorkspace(migration);
+                await persist((w) => {
+                  if (w.students.length)
+                    throw new Error(
+                      "المخزن لم يعد خاليًا؛ حدّث المساحة وراجع الاستيراد.",
+                    );
+                  return { ...w, students: migration.students };
+                }, "نقل النسخة المحلية إلى الموقع");
+                setMigration(null);
+              } catch (e) {
+                setToast(e instanceof Error ? e.message : "تعذر النقل");
+              } finally {
+                setMigrating(false);
+              }
+            }}
+          >
+            {migrating ? "جارٍ نقل البيانات…" : "نقل البيانات إلى الموقع"}
+          </button>
+        </Modal>
+      )}
       {editor && (
         <StudentEditor
           student={editor === "new" ? undefined : editor}
@@ -1072,7 +1170,7 @@ export default function App() {
       {backupPreview && (
         <Modal
           title="نسخة JSON كاملة"
-          subtitle="نسخة من مساحة هذا المتصفح؛ احفظها في ملف خاص"
+          subtitle="نسخة من بيانات الموقع المتاحة لك؛ احفظها في ملف خاص"
           onClose={() => setBackupPreview("")}
         >
           <p className="field-note">

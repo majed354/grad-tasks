@@ -256,7 +256,7 @@ export default function StudentEditor({
           )}
         </div>
         <footer className="modal-footer">
-          <span>البيانات تُحفظ في هذا المتصفح</span>
+          <span>البيانات تُحفظ في الموقع بعد نجاح الحفظ</span>
           <div className="button-row">
             <button
               type="button"

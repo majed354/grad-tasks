@@ -51,6 +51,9 @@ describe("هوية الطالب وجودة البيانات", () => {
     );
     expect(studentKey({ ...s, degree: "دكتوراه" })).not.toBe(studentKey(s));
     expect(normalize("أُصُول الفقه")).toBe("اصول الفقه");
+    expect(
+      validateStudent({ ...s, studentNumber: "١٢٣۴۵" }).studentNumber,
+    ).toBe("12345");
   });
   it("يرفض التواريخ غير الموجودة والمعدل خارج مقياسه وروابط التنفيذ", () => {
     expect(() =>

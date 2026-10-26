@@ -12,6 +12,15 @@ export async function loadWorkspace(): Promise<Workspace> {
   const value = await d.get("workspace", "current");
   return value ? workspaceSchema.parse(value) : emptyWorkspace();
 }
+export async function archiveLocalWorkspace(value: Workspace) {
+  const d = await db();
+  const key = "before-cloud-" + new Date().toISOString();
+  await d.put("workspace", workspaceSchema.parse(value), key);
+  const saved = await d.get("workspace", key);
+  if (JSON.stringify(saved) !== JSON.stringify(value))
+    throw new Error("تعذر التحقق من النسخة المحلية؛ لم يبدأ النقل.");
+  return key;
+}
 export async function saveWorkspace(
   value: Workspace,
   expectedRevision: number,

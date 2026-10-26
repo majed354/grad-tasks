@@ -524,7 +524,7 @@ export default function StudentDirectory({
           <Empty
             title={
               !hasWorkspaceData
-                ? "لم تُحمّل بيانات الطلاب في هذا المتصفح"
+                ? "لم تُضف بيانات الطلاب إلى الموقع"
                 : !available
                   ? "لا يوجد كشف لهذه السنة أو الفصل"
                   : !students.length
@@ -533,7 +533,7 @@ export default function StudentDirectory({
             }
             description={
               !hasWorkspaceData
-                ? "افتح نسخة JSON المحفوظة لتحميل الطلاب هنا. كل متصفح له مساحة مستقلة."
+                ? "انقل النسخة المحلية من إعدادات المساحة أو استورد نسخة JSON إلى مخزن الموقع المشترك."
                 : !available
                   ? "اختر سنة أو فصلًا تتوفر بياناته، أو استورد الكشف."
                   : !students.length

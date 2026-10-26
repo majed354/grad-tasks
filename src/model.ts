@@ -169,9 +169,10 @@ export const studentSchema = z
     studentNumber: z
       .string()
       .regex(
-        /^[A-Za-z0-9-]{3,30}$/,
+        /^[A-Za-z0-9٠-٩۰-۹-]{3,30}$/,
         "أدخل رقمًا جامعيًا من 3 إلى 30 حرفًا أو رقمًا",
-      ),
+      )
+      .transform((v) => digits(v)),
     fullName: text.min(2, "الاسم مطلوب"),
     program: text.min(1, "البرنامج مطلوب"),
     degree: z.enum(degrees),
