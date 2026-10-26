@@ -64,6 +64,8 @@ const navigation = [
 ] as const;
 export default function App() {
   const [backupPreview, setBackupPreview] = useState("");
+  const [backupPart, setBackupPart] = useState(0);
+  const backupChunkSize = 1024 * 1024;
   const directoryMemory = useRef<DirectoryMemory>({});
   const [workspace, setWorkspace] = useState<Workspace>(emptyWorkspace);
   const current = useRef(workspace);
@@ -783,9 +785,10 @@ export default function App() {
                         <button
                           className="button"
                           disabled={!workspace.students.length}
-                          onClick={() =>
+                          onClick={() => (
+                            setBackupPart(0),
                             setBackupPreview(backupText(current.current))
-                          }
+                          )}
                         >
                           عرض ونسخ JSON
                         </button>
@@ -1072,10 +1075,35 @@ export default function App() {
           subtitle="نسخة من مساحة هذا المتصفح؛ احفظها في ملف خاص"
           onClose={() => setBackupPreview("")}
         >
+          <p className="field-note">
+            تعرض المعاينة أجزاء لتبقى سريعة مع النسخ الكبيرة. زر النسخ ينسخ
+            الملف كاملًا.
+          </p>
+          <label>
+            جزء المعاينة{" "}
+            <select
+              aria-label="جزء معاينة JSON"
+              value={backupPart}
+              onChange={(e) => setBackupPart(Number(e.target.value))}
+            >
+              {Array.from(
+                { length: Math.ceil(backupPreview.length / backupChunkSize) },
+                (_, i) => (
+                  <option value={i} key={i}>
+                    {i + 1} /{" "}
+                    {Math.ceil(backupPreview.length / backupChunkSize)}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
           <textarea
             aria-label="نص النسخة الاحتياطية JSON"
             readOnly
-            value={backupPreview}
+            value={backupPreview.slice(
+              backupPart * backupChunkSize,
+              (backupPart + 1) * backupChunkSize,
+            )}
             rows={12}
             dir="ltr"
             spellCheck={false}
